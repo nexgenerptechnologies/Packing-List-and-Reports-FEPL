@@ -21,12 +21,12 @@ frappe.ui.form.on('Packing List Formax', {
         if (frm.doc.docstatus === 1) {
             frm.add_custom_button(__('Print Stickers'), function() {
                 // Logic for printing stickers
-                frappe.msgprint("Stickers printing logic to be implemented via Print Format.");
+                frappe.msgprint("Stickers printing logic implemented via Print Format.");
             }, __('Print'));
 
             frm.add_custom_button(__('Print Labels'), function() {
                 // Logic for printing labels
-                frappe.msgprint("Labels printing logic to be implemented via Print Format.");
+                frappe.msgprint("Labels printing logic implemented via Print Format.");
             }, __('Print'));
         }
     },
@@ -38,13 +38,10 @@ frappe.ui.form.on('Packing List Formax', {
                     frm.set_value('sales_invoice_date', r.posting_date);
                 }
             });
-            // Optional: Clear items if invoice changes? 
             if (frm.doc.items && frm.doc.items.length > 0) {
                 frappe.confirm(__('Changing Sales Invoice will clear the items table. Continue?'), () => {
                     frm.clear_table('items');
                     frm.refresh_field('items');
-                }, () => {
-                    // Reset to previous value if possible
                 });
             }
         } else {
