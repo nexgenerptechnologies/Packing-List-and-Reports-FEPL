@@ -36,30 +36,26 @@ def download_excel(docname):
     import math
     doc = frappe.get_doc('Packing List Formax', docname)
     
-    # Sheet 1: Main Packing List
-    data = [["TYPE", "Item Code", "Item Name", "Description", "Quantity", "CPN", "Box Number"]]
+    # Sheet 1: Main Packing List (Requested Columns Only)
+    data = [["Item Name", "Description", "Quantity", "CPN", "Box Number"]]
     for item in doc.items:
         data.append([
-            "LIST", item.item_code, item.item_name, item.description, 
+            item.item_name, item.description, 
             item.quantity, item.custom_cpn, item.box_number
         ])
     
     data.append([]) # Gap
     data.append(["CPN STICKER GRID (6 Columns)"])
     
-    # Part 2: 6-Column CPN Grid
+    # Part 2: 6-Column CPN Grid (Stickers)
     for item in doc.items:
         total_qty = float(item.quantity or 0)
         std_val = frappe.db.get_value('Item', item.item_code, 'custom_standard_packing_qty')
         std_qty = float(std_val) if std_val else total_qty
         if std_qty <= 0: std_qty = total_qty
-        
         num_stickers = int(math.ceil(total_qty / std_qty))
         
-        # Header for the item group
-        data.append([f"Item: {item.item_code} (Total: {num_stickers})"])
-        
-        # Create 6-column rows
+        data.append([f"Item: {item.item_name} (Total: {num_stickers})"])
         current_row = []
         for i in range(num_stickers):
             current_row.append(item.custom_cpn or "")
@@ -67,10 +63,23 @@ def download_excel(docname):
                 data.append(current_row)
                 current_row = []
         if current_row:
-            # Fill remaining columns with empty strings
             current_row += [""] * (6 - len(current_row))
             data.append(current_row)
-        data.append([]) # Gap between items
+        data.append([]) 
+
+    data.append(["LABEL DATA (Grouped by Box)"])
+    data.append(["Box No", "Customer", "Invoice", "Items Summary"])
+    
+    # Group items by box number for Label Sheet
+    boxes = {}
+    for item in doc.items:
+        b_no = item.box_number or "N/A"
+        if b_no not in boxes: boxes[b_no] = []
+        boxes[b_no].append(item)
+        
+    for b_no in sorted(boxes.keys()):
+        items_summary = "; ".join([f"{i.item_name} ({i.quantity})" for i in boxes[b_no]])
+        data.append([b_no, doc.customer_name, doc.sales_invoice, items_summary])
 
     from frappe.utils.xlsxutils import make_xlsx
     xlsx_file = make_xlsx(data, "Packing_Data")
@@ -88,20 +97,26 @@ def get_print_html(docname, print_type):
     <html>
     <head>
         <style>
-            @page { margin: 5mm; }
-            body { margin: 0; padding: 10px; font-family: sans-serif; }
-            table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-            td { border: 1px solid #000; padding: 8px; text-align: center; font-weight: bold; font-size: 14px; word-break: break-all; }
-            .item-section { margin-bottom: 20px; }
-            .item-header { background: #eee; padding: 5px; font-weight: bold; border: 1px solid #000; margin-bottom: -1px; }
-            
-            /* For Labels (unchanged logic, just size) */
-            .page-break { page-break-after: always; }
-            .card { border: 2px solid #000; padding: 30px; margin: auto; position: relative; width: 600px; height: 400px; }
-            .header { font-size: 1.5em; font-weight: bold; text-align: center; border-bottom: 3px solid #000; margin-bottom: 20px; padding-bottom: 10px; }
-            .row { margin-bottom: 15px; font-size: 1.3em; }
-            .tag { font-weight: bold; width: 140px; display: inline-block; }
-            .footer-qty { position: absolute; bottom: 30px; right: 30px; font-size: 2em; font-weight: bold; }
+            @page { size: A4; margin: 5mm; }
+            body { margin: 0; padding: 0; font-family: sans-serif; }
+            .grid-container { display: flex; flex-wrap: wrap; width: 200mm; margin: auto; }
+            .label-box { 
+                width: 95mm; 
+                min-height: 68mm; 
+                border: 1px solid #000; 
+                margin: 2mm; 
+                padding: 10px; 
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+            }
+            .sticker-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+            .sticker-td { border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold; font-size: 12px; }
+            .header-text { font-size: 1.1em; font-weight: bold; text-align: center; border-bottom: 2px solid #000; margin-bottom: 10px; padding-bottom: 5px; }
+            .field-row { font-size: 0.9em; margin-bottom: 4px; }
+            .field-tag { font-weight: bold; width: 80px; display: inline-block; }
+            .item-table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 0.85em; }
+            .item-table th, .item-table td { border: 1px solid #ddd; padding: 3px; text-align: left; }
         </style>
     </head>
     <body onload="window.print()">
@@ -113,42 +128,56 @@ def get_print_html(docname, print_type):
             std_val = frappe.db.get_value('Item', item.item_code, 'custom_standard_packing_qty')
             std_qty = float(std_val) if std_val else total_qty
             if std_qty <= 0: std_qty = total_qty
-            
             num_stickers = int(math.ceil(total_qty / std_qty))
             
-            html += f'<div class="item-section">'
-            html += f'<div class="item-header">Item: {item.item_code} (Stickers: {num_stickers})</div>'
-            html += '<table><tr>'
-            
+            html += f'<div style="margin-bottom: 20px;">'
+            html += f'<div style="font-weight:bold; background:#eee; padding:5px; border:1px solid #000;">Item: {item.item_name}</div>'
+            html += '<table class="sticker-table"><tr>'
             for i in range(num_stickers):
-                html += f'<td>{item.custom_cpn or ""}</td>'
+                html += f'<td class="sticker-td">{item.custom_cpn or ""}</td>'
                 if (i + 1) % 6 == 0 and (i + 1) < num_stickers:
                     html += '</tr><tr>'
-            
-            # Fill empty cells to complete the last row
             remainder = num_stickers % 6
             if remainder != 0:
-                for _ in range(6 - remainder):
-                    html += '<td></td>'
-            
+                for _ in range(6 - remainder): html += '<td class="sticker-td"></td>'
             html += '</tr></table></div>'
-    else: # Labels
+    else: # Labels - Grouped by Box, 8 per A4
+        boxes = {}
         for item in doc.items:
+            b_no = item.box_number or "N/A"
+            if b_no not in boxes: boxes[b_no] = []
+            boxes[b_no].append(item)
+            
+        html += '<div class="grid-container">'
+        for b_no in sorted(boxes.keys()):
             html += f"""
-            <div class="page-break" style="display: flex; height: 100vh; align-items: center; justify-content: center;">
-                <div class="card">
-                    <div class="header">ITEM LABEL</div>
-                    <div class="row"><span class="tag">Customer:</span> {doc.customer_name}</div>
-                    <div class="row"><span class="tag">Invoice:</span> {doc.sales_invoice}</div>
-                    <hr>
-                    <div class="row"><span class="tag">Item Code:</span> {item.item_code}</div>
-                    <div class="row"><span class="tag">Item Name:</span> {item.item_name}</div>
-                    <div class="row"><span class="tag">CPN:</span> {item.custom_cpn or 'N/A'}</div>
-                    <div class="row"><span class="tag">Total Qty:</span> {item.quantity}</div>
-                    <div class="row"><span class="tag">Box No:</span> {item.box_number or 'N/A'}</div>
-                </div>
-            </div>
+            <div class="label-box">
+                <div class="header-text">FORMAX ELECTRONICS PRIVATE LIMITED</div>
+                <div class="field-row"><span class="field-tag">Customer:</span> {doc.customer_name}</div>
+                <div class="field-row"><span class="field-tag">Invoice:</span> {doc.sales_invoice}</div>
+                <div class="field-row"><span class="field-tag">Box No:</span> {b_no}</div>
+                <table class="item-table">
+                    <thead>
+                        <tr>
+                            <th>Item Name</th>
+                            <th>Description</th>
+                            <th>Qty</th>
+                            <th>CPN</th>
+                        </tr>
+                    </thead>
+                    <tbody>
             """
+            for itm in boxes[b_no]:
+                html += f"""
+                <tr>
+                    <td>{itm.item_name}</td>
+                    <td>{itm.description or ""}</td>
+                    <td>{itm.quantity}</td>
+                    <td>{itm.custom_cpn or ""}</td>
+                </tr>
+                """
+            html += "</tbody></table></div>"
+        html += "</div>"
             
     html += "</body></html>"
     return html
