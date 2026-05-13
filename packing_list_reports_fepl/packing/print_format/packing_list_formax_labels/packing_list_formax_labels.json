@@ -8,7 +8,7 @@
  "modified": "2024-05-13 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Packing",
- "name": "Item Stickers",
+ "name": "Packing List Formax Labels",
  "owner": "Administrator",
  "print_format_builder": 0,
  "print_format_type": "Jinja",
