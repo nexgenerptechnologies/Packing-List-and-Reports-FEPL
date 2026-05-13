@@ -20,13 +20,11 @@ frappe.ui.form.on('Packing List Formax', {
     refresh: function(frm) {
         if (frm.doc.docstatus === 1) {
             frm.add_custom_button(__('Print Stickers'), function() {
-                // Logic for printing stickers
-                frappe.msgprint("Stickers printing logic implemented via Print Format.");
+                frappe.utils.print(frm.doc.doctype, frm.doc.name, 'Item Stickers', frm.doc.letter_head, frm.doc.language);
             }, __('Print'));
 
             frm.add_custom_button(__('Print Labels'), function() {
-                // Logic for printing labels
-                frappe.msgprint("Labels printing logic implemented via Print Format.");
+                frappe.utils.print(frm.doc.doctype, frm.doc.name, 'Item Labels', frm.doc.letter_head, frm.doc.language);
             }, __('Print'));
         }
     },
