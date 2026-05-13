@@ -1,0 +1,12 @@
+*.pyc
+__pycache__/
+*.so
+.DS_Store
+node_modules/
+site-cache/
+*.log
+.env
+.project
+.pydevproject
+.settings/
+.vscode/
