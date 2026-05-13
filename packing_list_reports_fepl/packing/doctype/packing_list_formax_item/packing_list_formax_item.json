@@ -38,15 +38,13 @@
    "fieldname": "quantity",
    "fieldtype": "Float",
    "in_list_view": 1,
-   "label": "Quantity",
-   "read_only": 1
+   "label": "Quantity"
   },
   {
    "fieldname": "custom_cpn",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "CPN",
-   "read_only": 1
+   "label": "CPN"
   },
   {
    "fieldname": "box_number",
