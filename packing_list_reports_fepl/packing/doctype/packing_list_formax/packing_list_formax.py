@@ -112,8 +112,12 @@ def get_print_html(docname, print_type):
             .header-text { font-size: 1.1em; font-weight: bold; text-align: center; border-bottom: 2px solid #000; margin-bottom: 10px; padding-bottom: 5px; white-space: nowrap; }
             .field-row { font-size: 0.9em; margin-bottom: 4px; }
             .field-tag { font-weight: bold; width: 80px; display: inline-block; }
-            .item-table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 0.85em; }
-            .item-table th, .item-table td { border: 1px solid #ddd; padding: 3px; text-align: left; }
+            .item-table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 0.75em; table-layout: fixed; }
+            .item-table th, .item-table td { border: 1px solid #333; padding: 2px; text-align: left; word-wrap: break-word; }
+            .col-name { width: 30%; }
+            .col-desc { width: 40%; }
+            .col-qty { width: 10%; }
+            .col-cpn { width: 20%; }
         </style>
     </head>
     <body onload="window.print()">
@@ -156,10 +160,10 @@ def get_print_html(docname, print_type):
                 <table class="item-table">
                     <thead>
                         <tr>
-                            <th>Item Name</th>
-                            <th>Description</th>
-                            <th>Qty</th>
-                            <th>CPN</th>
+                            <th class="col-name">Item Name</th>
+                            <th class="col-desc">Description</th>
+                            <th class="col-qty">Qty</th>
+                            <th class="col-cpn">CPN</th>
                         </tr>
                     </thead>
                     <tbody>
