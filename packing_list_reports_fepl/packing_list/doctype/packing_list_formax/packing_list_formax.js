@@ -10,7 +10,7 @@ frappe.ui.form.on('Packing List Formax', {
                 };
             }
             return {
-                query: "packing_list_reports_fepl.packing_list_reports_fepl.doctype.packing_list_formax.packing_list_formax.get_items_from_si",
+                query: "packing_list_reports_fepl.packing_list.doctype.packing_list_formax.packing_list_formax.get_items_from_si",
                 filters: {
                     'sales_invoice': frm.doc.sales_invoice
                 }
@@ -58,7 +58,7 @@ frappe.ui.form.on('Packing List Formax Item', {
         var row = locals[cdt][cdn];
         if (row.item_code && frm.doc.sales_invoice) {
             frappe.call({
-                method: "packing_list_reports_fepl.packing_list_reports_fepl.doctype.packing_list_formax.packing_list_formax.get_si_item_details",
+                method: "packing_list_reports_fepl.packing_list.doctype.packing_list_formax.packing_list_formax.get_si_item_details",
                 args: {
                     sales_invoice: frm.doc.sales_invoice,
                     item_code: row.item_code
