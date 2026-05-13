@@ -52,8 +52,12 @@ def download_excel(docname):
     
     # Part 2: Sticker Breakdown
     for item in doc.items:
-        total_qty = item.quantity
-        std_qty = frappe.db.get_value('Item', item.item_code, 'custom_standard_packing_qty') or 1
+        total_qty = float(item.quantity or 0)
+        std_val = frappe.db.get_value('Item', item.item_code, 'custom_standard_packing_qty')
+        std_qty = float(std_val) if std_val else total_qty
+        
+        if std_qty <= 0: std_qty = total_qty # Prevent division by zero
+        
         num_stickers = int(math.ceil(total_qty / std_qty))
         
         for i in range(num_stickers):
@@ -81,13 +85,13 @@ def get_print_html(docname, print_type):
             @page { margin: 0; }
             body { margin: 0; padding: 20px; font-family: sans-serif; }
             .page-break { page-break-after: always; }
-            .card { border: 2px solid #000; padding: 20px; margin: auto; position: relative; }
+            .card { border: 2px solid #000; padding: 30px; margin: auto; position: relative; }
             .sticker { width: 350px; height: 250px; }
-            .label { width: 500px; height: 350px; }
-            .header { font-size: 1.2em; font-weight: bold; text-align: center; border-bottom: 2px solid #000; margin-bottom: 15px; }
-            .row { margin-bottom: 10px; font-size: 1.1em; }
-            .tag { font-weight: bold; width: 100px; display: inline-block; }
-            .footer-qty { position: absolute; bottom: 20px; right: 20px; font-size: 1.5em; font-weight: bold; }
+            .label { width: 600px; height: 400px; }
+            .header { font-size: 1.5em; font-weight: bold; text-align: center; border-bottom: 3px solid #000; margin-bottom: 20px; padding-bottom: 10px; }
+            .row { margin-bottom: 15px; font-size: 1.3em; }
+            .tag { font-weight: bold; width: 140px; display: inline-block; }
+            .footer-qty { position: absolute; bottom: 30px; right: 30px; font-size: 2em; font-weight: bold; }
         </style>
     </head>
     <body onload="window.print()">
@@ -95,8 +99,12 @@ def get_print_html(docname, print_type):
     
     if print_type == 'Stickers':
         for item in doc.items:
-            total_qty = item.quantity
-            std_qty = frappe.db.get_value('Item', item.item_code, 'custom_standard_packing_qty') or 1
+            total_qty = float(item.quantity or 0)
+            std_val = frappe.db.get_value('Item', item.item_code, 'custom_standard_packing_qty')
+            std_qty = float(std_val) if std_val else total_qty
+            
+            if std_qty <= 0: std_qty = total_qty
+            
             num_stickers = int(math.ceil(total_qty / std_qty))
             
             for i in range(num_stickers):
