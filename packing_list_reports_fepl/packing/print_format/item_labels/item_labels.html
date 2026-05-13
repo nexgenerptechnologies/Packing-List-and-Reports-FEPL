@@ -1,29 +1,74 @@
 <style>
-    .label-container {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 15px;
+    @media print {
+        .label-page {
+            page-break-after: always;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
     }
     .label-card {
-        border: 2px solid #333;
-        padding: 15px;
-        width: 300px;
-        page-break-inside: avoid;
-        margin-bottom: 10px;
-        font-family: sans-serif;
+        border: 3px solid #333;
+        padding: 25px;
+        width: 450px;
+        text-align: left;
+        font-family: Arial, Helvetica, sans-serif;
+    }
+    .label-header {
+        font-size: 1.5em;
+        font-weight: bold;
+        text-align: center;
+        text-decoration: underline;
+        margin-bottom: 20px;
+    }
+    .field-label {
+        font-weight: bold;
+        width: 120px;
+        display: inline-block;
+    }
+    .field-value {
+        font-size: 1.2em;
+    }
+    .row {
+        margin-bottom: 12px;
     }
 </style>
 
-<div class="label-container">
-    {% for item in doc.items %}
+{% for item in doc.items %}
+    <div class="label-page">
         <div class="label-card">
-            <h3 style="margin-top: 0;">ITEM LABEL</h3>
+            <div class="label-header">ITEM LABEL</div>
+            
+            <div class="row">
+                <span class="field-label">Customer:</span>
+                <span class="field-value">{{ doc.customer_name }}</span>
+            </div>
+            <div class="row">
+                <span class="field-label">Invoice No:</span>
+                <span class="field-value">{{ doc.sales_invoice }}</span>
+            </div>
             <hr>
-            <strong>Item Code:</strong> {{ item.item_code }}<br>
-            <strong>Item Name:</strong> {{ item.item_name }}<br>
-            <strong>CPN:</strong> {{ item.custom_cpn or "N/A" }}<br>
-            <strong>Quantity:</strong> {{ item.quantity }}<br>
-            <strong>Box No:</strong> {{ item.box_number or "N/A" }}
+            <div class="row">
+                <span class="field-label">Item Code:</span>
+                <span class="field-value">{{ item.item_code }}</span>
+            </div>
+            <div class="row">
+                <span class="field-label">Item Name:</span>
+                <span class="field-value">{{ item.item_name }}</span>
+            </div>
+            <div class="row">
+                <span class="field-label">CPN:</span>
+                <span class="field-value">{{ item.custom_cpn or "N/A" }}</span>
+            </div>
+            <div class="row">
+                <span class="field-label">Total Qty:</span>
+                <span class="field-value">{{ item.quantity }}</span>
+            </div>
+            <div class="row">
+                <span class="field-label">Box Number:</span>
+                <span class="field-value">{{ item.box_number or "N/A" }}</span>
+            </div>
         </div>
-    {% endfor %}
-</div>
+    </div>
+{% endfor %}

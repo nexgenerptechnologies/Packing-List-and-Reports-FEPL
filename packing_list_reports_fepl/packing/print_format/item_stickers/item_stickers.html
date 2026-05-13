@@ -1,37 +1,86 @@
 <style>
-    .sticker-container {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
+    @media print {
+        .sticker-page {
+            page-break-after: always;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
     }
-    .sticker {
-        border: 1px solid #000;
-        padding: 10px;
-        width: 250px;
-        height: 150px;
-        page-break-inside: avoid;
-        font-family: sans-serif;
+    .sticker-card {
+        border: 2px solid #000;
+        padding: 20px;
+        width: 350px;
+        height: 250px;
+        text-align: left;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        position: relative;
+    }
+    .sticker-header {
+        font-size: 1.2em;
+        font-weight: bold;
+        text-align: center;
+        border-bottom: 2px solid #000;
+        margin-bottom: 15px;
+        padding-bottom: 5px;
+    }
+    .info-row {
+        margin-bottom: 8px;
+        font-size: 1.1em;
+    }
+    .label-tag {
+        font-weight: bold;
+        display: inline-block;
+        width: 100px;
+    }
+    .footer-qty {
+        position: absolute;
+        bottom: 15px;
+        right: 15px;
+        font-size: 1.5em;
+        font-weight: bold;
     }
 </style>
 
-<div class="sticker-container">
-    {% for item in doc.items %}
-        {# Calculate number of stickers based on Sales Invoice Quantity #}
-        {% set si_qty = item.quantity %}
-        {% set std_packing_qty = frappe.db.get_value('Item', item.item_code, 'custom_standard_packing_qty') or 1 %}
-        
-        {% set num_stickers = (si_qty / std_packing_qty)|round(0, 'ceil')|int %}
-        
-        {% for i in range(num_stickers) %}
-            <div class="sticker">
-                <div style="text-align: center; font-weight: bold; border-bottom: 1px solid #ccc; margin-bottom: 5px;">
-                    STICKER {{ i + 1 }} / {{ num_stickers }}
+{% for item in doc.items %}
+    {% set total_qty = item.quantity %}
+    {% set std_qty = frappe.db.get_value('Item', item.item_code, 'custom_standard_packing_qty') or 1 %}
+    
+    {% set num_stickers = (total_qty / std_qty)|round(0, 'ceil')|int %}
+    
+    {% for i in range(num_stickers) %}
+        <div class="sticker-page">
+            <div class="sticker-card">
+                <div class="sticker-header">
+                    PACKING STICKER ({{ i + 1 }} / {{ num_stickers }})
                 </div>
-                <strong>Item:</strong> {{ item.item_code }}<br>
-                <strong>CPN:</strong> {{ item.custom_cpn or "N/A" }}<br>
-                <strong>Name:</strong> {{ item.item_name }}<br>
-                <strong>Box No:</strong> {{ item.box_number or "___" }}
+                
+                <div class="info-row">
+                    <span class="label-tag">Item Code:</span> {{ item.item_code }}
+                </div>
+                <div class="info-row">
+                    <span class="label-tag">Item Name:</span> {{ item.item_name }}
+                </div>
+                <div class="info-row">
+                    <span class="label-tag">CPN:</span> {{ item.custom_cpn or "N/A" }}
+                </div>
+                <div class="info-row">
+                    <span class="label-tag">Box No:</span> {{ item.box_number or "N/A" }}
+                </div>
+                <div class="info-row">
+                    <span class="label-tag">Invoice:</span> {{ doc.sales_invoice }}
+                </div>
+
+                <div class="footer-qty">
+                    {# Logic for Qty in this specific box #}
+                    {% if i + 1 < num_stickers %}
+                        QTY: {{ std_qty }}
+                    {% else %}
+                        QTY: {{ total_qty - (std_qty * i) }}
+                    {% endif %}
+                </div>
             </div>
-        {% endfor %}
+        </div>
     {% endfor %}
-</div>
+{% endfor %}
