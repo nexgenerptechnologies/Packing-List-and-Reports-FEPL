@@ -1,0 +1,15 @@
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "packing_list_reports_fepl"
+authors = [
+    {name = "NexGen ERP Technologies", email = "admin@example.com"}
+]
+description = "Packing List and Reports for FEPL"
+readme = "README.md"
+dynamic = ["version"]
+
+[tool.flit.module]
+name = "packing_list_reports_fepl"
