@@ -1,0 +1,18 @@
+{
+ "creation": "2024-05-13 00:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Print Format",
+ "format_data": "{}",
+ "html": null,
+ "line_breaker": "\n",
+ "modified": "2024-05-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Packing",
+ "name": "Item Stickers",
+ "owner": "Administrator",
+ "print_format_builder": 0,
+ "print_format_type": "Jinja",
+ "raw_printing": 0,
+ "standard": "Yes",
+ "doc_type": "Packing List Formax"
+}

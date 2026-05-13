@@ -1,0 +1,29 @@
+<style>
+    .label-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+    }
+    .label-card {
+        border: 2px solid #333;
+        padding: 15px;
+        width: 300px;
+        page-break-inside: avoid;
+        margin-bottom: 10px;
+        font-family: sans-serif;
+    }
+</style>
+
+<div class="label-container">
+    {% for item in doc.items %}
+        <div class="label-card">
+            <h3 style="margin-top: 0;">ITEM LABEL</h3>
+            <hr>
+            <strong>Item Code:</strong> {{ item.item_code }}<br>
+            <strong>Item Name:</strong> {{ item.item_name }}<br>
+            <strong>CPN:</strong> {{ item.custom_cpn or "N/A" }}<br>
+            <strong>Quantity:</strong> {{ item.quantity }}<br>
+            <strong>Box No:</strong> {{ item.box_number or "N/A" }}
+        </div>
+    {% endfor %}
+</div>

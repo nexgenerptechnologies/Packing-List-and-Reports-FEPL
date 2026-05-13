@@ -1,0 +1,39 @@
+<div class="header" style="text-align: center; margin-bottom: 20px;">
+    <h2>Packing List Formax</h2>
+</div>
+
+<div class="row">
+    <div class="col-xs-6">
+        <strong>Customer:</strong> {{ doc.customer_name }}<br>
+        <strong>Sales Invoice:</strong> {{ doc.sales_invoice }}
+    </div>
+    <div class="col-xs-6 text-right">
+        <strong>Date:</strong> {{ frappe.utils.formatdate(doc.sales_invoice_date) }}<br>
+        <strong>ID:</strong> {{ doc.name }}
+    </div>
+</div>
+
+<table class="table table-bordered" style="margin-top: 30px;">
+    <thead>
+        <tr>
+            <th>Item Code</th>
+            <th>Item Name</th>
+            <th>Description</th>
+            <th>Qty</th>
+            <th>CPN</th>
+            <th>Box Number</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in doc.items %}
+        <tr>
+            <td>{{ item.item_code }}</td>
+            <td>{{ item.item_name }}</td>
+            <td>{{ item.description or "" }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>{{ item.custom_cpn or "" }}</td>
+            <td>{{ item.box_number or "" }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

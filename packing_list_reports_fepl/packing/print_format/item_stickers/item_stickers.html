@@ -1,0 +1,37 @@
+<style>
+    .sticker-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .sticker {
+        border: 1px solid #000;
+        padding: 10px;
+        width: 250px;
+        height: 150px;
+        page-break-inside: avoid;
+        font-family: sans-serif;
+    }
+</style>
+
+<div class="sticker-container">
+    {% for item in doc.items %}
+        {# Calculate number of stickers based on Sales Invoice Quantity #}
+        {% set si_qty = item.quantity %}
+        {% set std_packing_qty = frappe.db.get_value('Item', item.item_code, 'custom_standard_packing_qty') or 1 %}
+        
+        {% set num_stickers = (si_qty / std_packing_qty)|round(0, 'ceil')|int %}
+        
+        {% for i in range(num_stickers) %}
+            <div class="sticker">
+                <div style="text-align: center; font-weight: bold; border-bottom: 1px solid #ccc; margin-bottom: 5px;">
+                    STICKER {{ i + 1 }} / {{ num_stickers }}
+                </div>
+                <strong>Item:</strong> {{ item.item_code }}<br>
+                <strong>CPN:</strong> {{ item.custom_cpn or "N/A" }}<br>
+                <strong>Name:</strong> {{ item.item_name }}<br>
+                <strong>Box No:</strong> {{ item.box_number or "___" }}
+            </div>
+        {% endfor %}
+    {% endfor %}
+</div>
