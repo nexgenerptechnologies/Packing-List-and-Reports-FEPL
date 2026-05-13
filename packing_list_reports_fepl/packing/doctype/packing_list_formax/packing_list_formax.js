@@ -20,11 +20,31 @@ frappe.ui.form.on('Packing List Formax', {
     refresh: function(frm) {
         if (frm.doc.docstatus === 1) {
             frm.add_custom_button(__('Print Stickers'), function() {
-                frappe.utils.print(frm.doc.doctype, frm.doc.name, 'Packing List Formax Stickers', 0, frm.doc.language);
+                frappe.call({
+                    method: 'packing_list_reports_fepl.packing.doctype.packing_list_formax.packing_list_formax.get_print_html',
+                    args: { docname: frm.doc.name, print_type: 'Stickers' },
+                    callback: function(r) {
+                        if (r.message) {
+                            var w = window.open();
+                            w.document.write(r.message);
+                            w.document.close();
+                        }
+                    }
+                });
             }, __('Print'));
 
             frm.add_custom_button(__('Print Labels'), function() {
-                frappe.utils.print(frm.doc.doctype, frm.doc.name, 'Packing List Formax Labels', 0, frm.doc.language);
+                frappe.call({
+                    method: 'packing_list_reports_fepl.packing.doctype.packing_list_formax.packing_list_formax.get_print_html',
+                    args: { docname: frm.doc.name, print_type: 'Labels' },
+                    callback: function(r) {
+                        if (r.message) {
+                            var w = window.open();
+                            w.document.write(r.message);
+                            w.document.close();
+                        }
+                    }
+                });
             }, __('Print'));
 
             frm.add_custom_button(__('Download Excel'), function() {
