@@ -20,12 +20,17 @@ frappe.ui.form.on('Packing List Formax', {
     refresh: function(frm) {
         if (frm.doc.docstatus === 1) {
             frm.add_custom_button(__('Print Stickers'), function() {
-                frappe.utils.print(frm.doc.doctype, frm.doc.name, 'Packing List Formax Stickers', frm.doc.letter_head, frm.doc.language);
+                frappe.utils.print(frm.doc.doctype, frm.doc.name, 'Packing List Formax Stickers', 0, frm.doc.language);
             }, __('Print'));
 
             frm.add_custom_button(__('Print Labels'), function() {
-                frappe.utils.print(frm.doc.doctype, frm.doc.name, 'Packing List Formax Labels', frm.doc.letter_head, frm.doc.language);
+                frappe.utils.print(frm.doc.doctype, frm.doc.name, 'Packing List Formax Labels', 0, frm.doc.language);
             }, __('Print'));
+
+            frm.add_custom_button(__('Download Excel'), function() {
+                var url = frappe.urllib.get_full_url("/api/method/packing_list_reports_fepl.packing.doctype.packing_list_formax.packing_list_formax.download_excel?docname=" + frm.doc.name);
+                window.open(url, '_blank');
+            }, __('Actions'));
         }
     },
     sales_invoice: function(frm) {
