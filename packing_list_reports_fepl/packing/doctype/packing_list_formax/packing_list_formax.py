@@ -32,59 +32,56 @@ def get_si_item_details(sales_invoice, item_code):
     return item_details
 
 @frappe.whitelist()
-def download_excel(docname):
+def download_excel(docname, export_type):
     import math
     doc = frappe.get_doc('Packing List Formax', docname)
+    data = []
+    filename = f"{doc.name}_{export_type}.xlsx"
     
-    # Sheet 1: Main Packing List (Requested Columns Only)
-    data = [["Item Name", "Description", "Quantity", "CPN", "Box Number"]]
-    for item in doc.items:
-        data.append([
-            item.item_name, item.description, 
-            item.quantity, item.custom_cpn, item.box_number
-        ])
-    
-    data.append([]) # Gap
-    data.append(["CPN STICKER GRID (6 Columns)"])
-    
-    # Part 2: 6-Column CPN Grid (Stickers)
-    for item in doc.items:
-        total_qty = float(item.quantity or 0)
-        std_val = frappe.db.get_value('Item', item.item_code, 'custom_standard_packing_qty')
-        std_qty = float(std_val) if std_val else total_qty
-        if std_qty <= 0: std_qty = total_qty
-        num_stickers = int(math.ceil(total_qty / std_qty))
-        
-        data.append([f"Item: {item.item_name} (Total: {num_stickers})"])
-        current_row = []
-        for i in range(num_stickers):
-            current_row.append(item.custom_cpn or "")
-            if len(current_row) == 6:
+    if export_type == 'Packing List':
+        data = [["Item Name", "Description", "Quantity", "CPN", "Box Number"]]
+        for item in doc.items:
+            data.append([item.item_name, item.description, item.quantity, item.custom_cpn, item.box_number])
+            
+    elif export_type == 'Stickers':
+        data = [["CPN STICKER GRID (6 Columns)"]]
+        for item in doc.items:
+            total_qty = float(item.quantity or 0)
+            std_val = frappe.db.get_value('Item', item.item_code, 'custom_standard_packing_qty')
+            std_qty = float(std_val) if std_val else total_qty
+            if std_qty <= 0: std_qty = total_qty
+            num_stickers = int(math.ceil(total_qty / std_qty))
+            
+            data.append([f"Item: {item.item_name} (Total: {num_stickers})"])
+            current_row = []
+            for i in range(num_stickers):
+                current_row.append(item.custom_cpn or "")
+                if len(current_row) == 6:
+                    data.append(current_row)
+                    current_row = []
+            if current_row:
+                current_row += [""] * (6 - len(current_row))
                 data.append(current_row)
-                current_row = []
-        if current_row:
-            current_row += [""] * (6 - len(current_row))
-            data.append(current_row)
-        data.append([]) 
-
-    data.append(["LABEL DATA (Grouped by Box)"])
-    data.append(["Box No", "Customer", "Invoice", "Items Summary"])
-    
-    # Group items by box number for Label Sheet
-    boxes = {}
-    for item in doc.items:
-        b_no = item.box_number or "N/A"
-        if b_no not in boxes: boxes[b_no] = []
-        boxes[b_no].append(item)
-        
-    for b_no in sorted(boxes.keys()):
-        items_summary = "; ".join([f"{i.item_name} ({i.quantity})" for i in boxes[b_no]])
-        data.append([b_no, doc.customer_name, doc.sales_invoice, items_summary])
+            data.append([]) 
+            
+    elif export_type == 'Labels':
+        data = [["Box No", "Customer", "Invoice", "Item Details"]]
+        boxes = {}
+        for item in doc.items:
+            b_no = item.box_number or "N/A"
+            if b_no not in boxes: boxes[b_no] = []
+            boxes[b_no].append(item)
+            
+        for b_no in sorted(boxes.keys()):
+            # For Excel, we list each item in the box as a separate line or combined?
+            # Combined summary is usually clearer for a single row.
+            items_summary = "; ".join([f"{i.item_name} [Qty: {i.quantity}, CPN: {i.custom_cpn}]" for i in boxes[b_no]])
+            data.append([b_no, doc.customer_name, doc.sales_invoice, items_summary])
 
     from frappe.utils.xlsxutils import make_xlsx
-    xlsx_file = make_xlsx(data, "Packing_Data")
+    xlsx_file = make_xlsx(data, export_type)
     
-    frappe.response['filename'] = f"{doc.name}_Packing_Data.xlsx"
+    frappe.response['filename'] = filename
     frappe.response['filecontent'] = xlsx_file.getvalue()
     frappe.response['type'] = 'binary'
 
@@ -103,7 +100,7 @@ def get_print_html(docname, print_type):
             .label-box { 
                 width: 95mm; 
                 min-height: 68mm; 
-                border: 1px solid #000; 
+                border: 2px solid #000; 
                 margin: 2mm; 
                 padding: 10px; 
                 box-sizing: border-box;
@@ -112,7 +109,7 @@ def get_print_html(docname, print_type):
             }
             .sticker-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
             .sticker-td { border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold; font-size: 12px; }
-            .header-text { font-size: 1.1em; font-weight: bold; text-align: center; border-bottom: 2px solid #000; margin-bottom: 10px; padding-bottom: 5px; }
+            .header-text { font-size: 1.1em; font-weight: bold; text-align: center; border-bottom: 2px solid #000; margin-bottom: 10px; padding-bottom: 5px; white-space: nowrap; }
             .field-row { font-size: 0.9em; margin-bottom: 4px; }
             .field-tag { font-weight: bold; width: 80px; display: inline-block; }
             .item-table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 0.85em; }
@@ -152,7 +149,7 @@ def get_print_html(docname, print_type):
         for b_no in sorted(boxes.keys()):
             html += f"""
             <div class="label-box">
-                <div class="header-text">FORMAX ELECTRONICS PRIVATE LIMITED</div>
+                <div class="header-text">FORMAX ELCTRONICS PVT. LTD.</div>
                 <div class="field-row"><span class="field-tag">Customer:</span> {doc.customer_name}</div>
                 <div class="field-row"><span class="field-tag">Invoice:</span> {doc.sales_invoice}</div>
                 <div class="field-row"><span class="field-tag">Box No:</span> {b_no}</div>

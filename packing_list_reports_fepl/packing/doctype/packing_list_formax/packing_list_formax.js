@@ -47,8 +47,18 @@ frappe.ui.form.on('Packing List Formax', {
                 });
             }, __('Print'));
 
-            frm.add_custom_button(__('Download Excel'), function() {
-                var url = frappe.urllib.get_full_url("/api/method/packing_list_reports_fepl.packing.doctype.packing_list_formax.packing_list_formax.download_excel?docname=" + frm.doc.name);
+            frm.add_custom_button(__('Excel: Packing List'), function() {
+                var url = frappe.urllib.get_full_url("/api/method/packing_list_reports_fepl.packing.doctype.packing_list_formax.packing_list_formax.download_excel?docname=" + frm.doc.name + "&export_type=Packing List");
+                window.open(url, '_blank');
+            }, __('Actions'));
+
+            frm.add_custom_button(__('Excel: Stickers Grid'), function() {
+                var url = frappe.urllib.get_full_url("/api/method/packing_list_reports_fepl.packing.doctype.packing_list_formax.packing_list_formax.download_excel?docname=" + frm.doc.name + "&export_type=Stickers");
+                window.open(url, '_blank');
+            }, __('Actions'));
+
+            frm.add_custom_button(__('Excel: Labels Data'), function() {
+                var url = frappe.urllib.get_full_url("/api/method/packing_list_reports_fepl.packing.doctype.packing_list_formax.packing_list_formax.download_excel?docname=" + frm.doc.name + "&export_type=Labels");
                 window.open(url, '_blank');
             }, __('Actions'));
         }
