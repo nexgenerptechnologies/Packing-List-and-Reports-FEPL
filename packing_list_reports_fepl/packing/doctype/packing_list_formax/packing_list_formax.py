@@ -114,10 +114,10 @@ def get_print_html(docname, print_type):
             .field-tag { font-weight: bold; width: 80px; display: inline-block; }
             .item-table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 0.75em; table-layout: fixed; }
             .item-table th, .item-table td { border: 1px solid #333; padding: 2px; text-align: left; word-wrap: break-word; }
-            .col-name { width: 30%; }
-            .col-desc { width: 40%; }
-            .col-qty { width: 10%; }
-            .col-cpn { width: 20%; }
+            .col-name { width: 28%; }
+            .col-desc { width: 33%; }
+            .col-qty { width: 19%; text-align: center !important; }
+            .col-cpn { width: 20%; text-align: center !important; }
         </style>
     </head>
     <body onload="window.print()">
@@ -169,12 +169,14 @@ def get_print_html(docname, print_type):
                     <tbody>
             """
             for itm in boxes[b_no]:
+                # Format qty to remove .0 if it is a whole number
+                display_qty = int(itm.quantity) if itm.quantity == int(itm.quantity) else itm.quantity
                 html += f"""
                 <tr>
                     <td>{itm.item_name}</td>
                     <td>{itm.description or ""}</td>
-                    <td>{itm.quantity}</td>
-                    <td>{itm.custom_cpn or ""}</td>
+                    <td style="text-align:center;">{display_qty}</td>
+                    <td style="text-align:center;">{itm.custom_cpn or ""}</td>
                 </tr>
                 """
             html += "</tbody></table></div>"
