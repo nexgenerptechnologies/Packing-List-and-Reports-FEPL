@@ -50,7 +50,7 @@
   {
    "fieldname": "total_invoice_qty",
    "fieldtype": "Float",
-   "label": "Total Invoice Qty",
+   "label": "Total Invoice Qty.",
    "read_only": 1
   },
   {

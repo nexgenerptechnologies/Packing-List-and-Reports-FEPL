@@ -90,8 +90,14 @@ frappe.ui.form.on('Packing List Formax', {
         }
     },
     calculate_total_quantity: function(frm) {
-        // total_boxes equals number of lines in Packing List Formax
-        frm.set_value('total_boxes', (frm.doc.items || []).length);
+        // total_boxes equals number of UNIQUE boxes in Packing List Formax
+        let unique_boxes = new Set();
+        (frm.doc.items || []).forEach(item => {
+            if (item.box_number) {
+                unique_boxes.add(item.box_number);
+            }
+        });
+        frm.set_value('total_boxes', unique_boxes.size);
         
         // Ensure total_invoice_qty is synced if missing
         if (!frm.doc.total_invoice_qty && frm.doc.sales_invoice) {
@@ -103,6 +109,9 @@ frappe.ui.form.on('Packing List Formax', {
 });
 
 frappe.ui.form.on('Packing List Formax Item', {
+    box_number: function(frm, cdt, cdn) {
+        frm.events.calculate_total_quantity(frm);
+    },
     items_remove: function(frm, cdt, cdn) {
         frm.events.calculate_total_quantity(frm);
     },

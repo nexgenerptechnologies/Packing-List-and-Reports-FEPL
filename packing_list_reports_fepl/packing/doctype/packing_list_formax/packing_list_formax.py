@@ -14,7 +14,11 @@ class PackingListFormax(Document):
         if si_totals:
             self.total_invoice_qty = si_totals.total_qty
             
-        self.total_boxes = len(self.items)
+        unique_boxes = set()
+        for item in self.items:
+            if item.box_number:
+                unique_boxes.add(item.box_number)
+        self.total_boxes = len(unique_boxes)
 
 @frappe.whitelist()
 def get_items_from_si(doctype, txt, searchfield, start, page_len, filters):
