@@ -11,7 +11,7 @@
   "customer_name",
   "column_break_1",
   "sales_invoice_date",
-  "total_invoice_quantity",
+  "total_invoice_qty",
   "total_boxes",
   "items_section",
   "items"
@@ -48,9 +48,9 @@
    "read_only": 1
   },
   {
-   "fieldname": "total_invoice_quantity",
+   "fieldname": "total_invoice_qty",
    "fieldtype": "Float",
-   "label": "Total Invoice Quantity",
+   "label": "Total Invoice Qty",
    "read_only": 1
   },
   {

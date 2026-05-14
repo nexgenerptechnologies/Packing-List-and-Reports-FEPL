@@ -69,51 +69,40 @@ frappe.ui.form.on('Packing List Formax', {
                 if (r) {
                     frm.set_value('customer_name', r.customer_name);
                     frm.set_value('sales_invoice_date', r.posting_date);
-                    frm.set_value('total_invoice_quantity', r.total_qty);
+                    frm.set_value('total_invoice_qty', r.total_qty);
                 }
             });
             
-            // Get line count (Total Boxes)
-            frappe.call({
-                method: "frappe.client.get_list",
-                args: {
-                    doctype: "Sales Invoice Item",
-                    filters: { parent: frm.doc.sales_invoice },
-                    fields: ["count(*) as count"]
-                },
-                callback: function(r) {
-                    if (r.message && r.message.length > 0) {
-                        frm.set_value('total_boxes', r.message[0].count);
-                    }
-                }
-            });
-
             if (frm.doc.items && frm.doc.items.length > 0) {
                 frappe.confirm(__('Changing Sales Invoice will clear the items table. Continue?'), () => {
                     frm.clear_table('items');
                     frm.refresh_field('items');
+                    frm.events.calculate_total_quantity(frm);
                 });
             }
         } else {
             frm.set_value('customer_name', '');
             frm.set_value('sales_invoice_date', '');
+            frm.set_value('total_invoice_qty', 0);
+            frm.set_value('total_boxes', 0);
             frm.clear_table('items');
             frm.refresh_field('items');
         }
     },
     calculate_total_quantity: function(frm) {
-        let total = 0;
-        (frm.doc.items || []).forEach(item => {
-            total += flt(item.quantity);
-        });
-        frm.set_value('total_quantity', total);
+        // total_boxes equals number of lines in Packing List Formax
+        frm.set_value('total_boxes', (frm.doc.items || []).length);
+        
+        // Ensure total_invoice_qty is synced if missing
+        if (!frm.doc.total_invoice_qty && frm.doc.sales_invoice) {
+            frappe.db.get_value('Sales Invoice', frm.doc.sales_invoice, 'total_qty', (r) => {
+                if (r) frm.set_value('total_invoice_qty', r.total_qty);
+            });
+        }
     }
 });
 
 frappe.ui.form.on('Packing List Formax Item', {
-    quantity: function(frm, cdt, cdn) {
-        frm.events.calculate_total_quantity(frm);
-    },
     items_remove: function(frm, cdt, cdn) {
         frm.events.calculate_total_quantity(frm);
     },
