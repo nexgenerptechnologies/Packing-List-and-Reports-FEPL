@@ -5,16 +5,22 @@
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
- "field_order": [
+  "field_order": [
+  "main_section",
   "sales_invoice",
   "customer_name",
+  "column_break_1",
   "sales_invoice_date",
+  "total_invoice_quantity",
+  "total_boxes",
   "items_section",
-  "items",
-  "totals_section",
-  "total_quantity"
+  "items"
  ],
  "fields": [
+  {
+   "fieldname": "main_section",
+   "fieldtype": "Section Break"
+  },
   {
    "fieldname": "sales_invoice",
    "fieldtype": "Link",
@@ -31,10 +37,26 @@
    "read_only": 1
   },
   {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
    "fieldname": "sales_invoice_date",
    "fieldtype": "Date",
    "in_list_view": 1,
    "label": "Sales Invoice Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_invoice_quantity",
+   "fieldtype": "Float",
+   "label": "Total Invoice Quantity",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_boxes",
+   "fieldtype": "Int",
+   "label": "Total Boxes",
    "read_only": 1
   },
   {
@@ -48,16 +70,6 @@
    "label": "Packing List Items",
    "options": "Packing List Formax Item",
    "reqd": 1
-  },
-  {
-   "fieldname": "totals_section",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "total_quantity",
-   "fieldtype": "Float",
-   "label": "Total Quantity",
-   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,

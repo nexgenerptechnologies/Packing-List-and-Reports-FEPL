@@ -65,12 +65,29 @@ frappe.ui.form.on('Packing List Formax', {
     },
     sales_invoice: function(frm) {
         if (frm.doc.sales_invoice) {
-            frappe.db.get_value('Sales Invoice', frm.doc.sales_invoice, ['customer_name', 'posting_date'], (r) => {
+            frappe.db.get_value('Sales Invoice', frm.doc.sales_invoice, ['customer_name', 'posting_date', 'total_qty'], (r) => {
                 if (r) {
                     frm.set_value('customer_name', r.customer_name);
                     frm.set_value('sales_invoice_date', r.posting_date);
+                    frm.set_value('total_invoice_quantity', r.total_qty);
                 }
             });
+            
+            // Get line count (Total Boxes)
+            frappe.call({
+                method: "frappe.client.get_list",
+                args: {
+                    doctype: "Sales Invoice Item",
+                    filters: { parent: frm.doc.sales_invoice },
+                    fields: ["count(*) as count"]
+                },
+                callback: function(r) {
+                    if (r.message && r.message.length > 0) {
+                        frm.set_value('total_boxes', r.message[0].count);
+                    }
+                }
+            });
+
             if (frm.doc.items && frm.doc.items.length > 0) {
                 frappe.confirm(__('Changing Sales Invoice will clear the items table. Continue?'), () => {
                     frm.clear_table('items');

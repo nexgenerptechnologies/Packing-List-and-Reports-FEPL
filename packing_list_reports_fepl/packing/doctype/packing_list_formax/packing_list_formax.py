@@ -9,9 +9,12 @@ class PackingListFormax(Document):
         self.calculate_total_quantity()
 
     def calculate_total_quantity(self):
-        self.total_quantity = 0
-        for item in self.items:
-            self.total_quantity += float(item.quantity or 0)
+        # We also ensure SI totals are synced on save just in case
+        si_totals = frappe.db.get_value('Sales Invoice', self.sales_invoice, ['total_qty'], as_dict=1)
+        if si_totals:
+            self.total_invoice_quantity = si_totals.total_qty
+            
+        self.total_boxes = frappe.db.count('Sales Invoice Item', {'parent': self.sales_invoice})
 
 @frappe.whitelist()
 def get_items_from_si(doctype, txt, searchfield, start, page_len, filters):
