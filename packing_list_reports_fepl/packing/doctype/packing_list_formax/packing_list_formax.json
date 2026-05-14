@@ -10,7 +10,9 @@
   "customer_name",
   "sales_invoice_date",
   "items_section",
-  "items"
+  "items",
+  "totals_section",
+  "total_quantity"
  ],
  "fields": [
   {
@@ -46,6 +48,16 @@
    "label": "Packing List Items",
    "options": "Packing List Formax Item",
    "reqd": 1
+  },
+  {
+   "fieldname": "totals_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "total_quantity",
+   "fieldtype": "Float",
+   "label": "Total Quantity",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,

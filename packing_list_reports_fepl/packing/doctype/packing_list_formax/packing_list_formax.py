@@ -5,6 +5,14 @@ from frappe import _
 class PackingListFormax(Document):
     pass
 
+    def validate(self):
+        self.calculate_total_quantity()
+
+    def calculate_total_quantity(self):
+        self.total_quantity = 0
+        for item in self.items:
+            self.total_quantity += float(item.quantity or 0)
+
 @frappe.whitelist()
 def get_items_from_si(doctype, txt, searchfield, start, page_len, filters):
     sales_invoice = filters.get('sales_invoice')
@@ -168,9 +176,11 @@ def get_print_html(docname, print_type):
                     </thead>
                     <tbody>
             """
+            box_total = 0
             for itm in boxes[b_no]:
                 # Format qty to remove .0 if it is a whole number
                 display_qty = int(itm.quantity) if itm.quantity == int(itm.quantity) else itm.quantity
+                box_total += float(itm.quantity or 0)
                 html += f"""
                 <tr>
                     <td>{itm.item_name}</td>
@@ -179,6 +189,16 @@ def get_print_html(docname, print_type):
                     <td style="text-align:center;">{itm.custom_cpn or ""}</td>
                 </tr>
                 """
+            
+            # Format box_total to remove .0
+            display_box_total = int(box_total) if box_total == int(box_total) else box_total
+            html += f"""
+                <tr style="background:#f9f9f9; font-weight:bold;">
+                    <td colspan="2" style="text-align:right;">Total Qty in Box:</td>
+                    <td style="text-align:center;">{display_box_total}</td>
+                    <td></td>
+                </tr>
+            """
             html += "</tbody></table></div>"
         html += "</div>"
             

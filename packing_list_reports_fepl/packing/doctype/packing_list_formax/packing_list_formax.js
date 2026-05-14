@@ -83,10 +83,26 @@ frappe.ui.form.on('Packing List Formax', {
             frm.clear_table('items');
             frm.refresh_field('items');
         }
+    },
+    calculate_total_quantity: function(frm) {
+        let total = 0;
+        (frm.doc.items || []).forEach(item => {
+            total += flt(item.quantity);
+        });
+        frm.set_value('total_quantity', total);
     }
 });
 
 frappe.ui.form.on('Packing List Formax Item', {
+    quantity: function(frm, cdt, cdn) {
+        frm.events.calculate_total_quantity(frm);
+    },
+    items_remove: function(frm, cdt, cdn) {
+        frm.events.calculate_total_quantity(frm);
+    },
+    items_add: function(frm, cdt, cdn) {
+        frm.events.calculate_total_quantity(frm);
+    },
     item_code: function(frm, cdt, cdn) {
         var row = locals[cdt][cdn];
         if (row.item_code && frm.doc.sales_invoice) {
