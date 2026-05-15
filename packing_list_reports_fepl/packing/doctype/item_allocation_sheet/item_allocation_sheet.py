@@ -11,7 +11,7 @@ class ItemAllocationSheet(Document):
 
 	def create_stock_reservations(self):
 		for row in self.allocations:
-			if not row.stock_reservation_entry:
+			if row.allocated_qty > 0 and not row.stock_reservation_entry:
 				sre = frappe.get_doc({
 					"doctype": "Stock Reservation Entry",
 					"item_code": self.item_code,
