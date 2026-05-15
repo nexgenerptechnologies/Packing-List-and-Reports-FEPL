@@ -6,5 +6,6 @@ app_email = "admin@example.com"
 app_license = "mit"
 
 doctype_js = {
-    "Sales Invoice": "public/js/sales_invoice.js"
+    "Sales Invoice": "public/js/sales_invoice.js",
+    "Delivery Note": "public/js/delivery_note.js"
 }
