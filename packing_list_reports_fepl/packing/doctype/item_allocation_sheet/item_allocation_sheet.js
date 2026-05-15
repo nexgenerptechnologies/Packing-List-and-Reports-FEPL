@@ -35,15 +35,21 @@ frappe.ui.form.on('Allocation Detail', {
 	sales_order: function(frm, cdt, cdn) {
 		let row = locals[cdt][cdn];
 		if (row.sales_order && frm.doc.item_code) {
-			// Fetch SO Item details
+			// 1. Get the Sales Order Item ID
 			frappe.db.get_value('Sales Order Item', 
 				{ parent: row.sales_order, item_code: frm.doc.item_code }, 
-				['name', 'customer_name', 'sales_partner'], 
+				'name', 
 				(r) => {
-					if (r) {
+					if (r && r.name) {
 						frappe.model.set_value(cdt, cdn, 'sales_order_item', r.name);
-						frappe.model.set_value(cdt, cdn, 'customer', r.customer_name);
-						frappe.model.set_value(cdt, cdn, 'sales_partner', r.sales_partner);
+						
+						// 2. Get Customer and Partner from Parent Sales Order
+						frappe.db.get_value('Sales Order', row.sales_order, ['customer_name', 'sales_partner'], (parent_res) => {
+							if (parent_res) {
+								frappe.model.set_value(cdt, cdn, 'customer', parent_res.customer_name);
+								frappe.model.set_value(cdt, cdn, 'sales_partner', parent_res.sales_partner);
+							}
+						});
 					} else {
 						frappe.msgprint(__('Item {0} not found in Sales Order {1}', [frm.doc.item_code, row.sales_order]));
 						frappe.model.set_value(cdt, cdn, 'sales_order', '');
