@@ -14,6 +14,7 @@
   "etd",
   "eta",
   "currency",
+  "amended_from",
   "excel_file",
   "section_break_1",
   "remarks",
@@ -66,8 +67,17 @@
   {
    "fieldname": "currency",
    "fieldtype": "Link",
+   "hidden": 1,
    "label": "Currency",
-   "options": "Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Shipment Tracker",
+   "print_hide": 1,
    "read_only": 1
   },
   {
