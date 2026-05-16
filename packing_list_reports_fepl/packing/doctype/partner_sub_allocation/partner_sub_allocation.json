@@ -1,69 +1,69 @@
 {
  "actions": [],
- "autoname": "ALLOC-.YYYY.-.#####",
- "creation": "2024-05-15 00:00:00",
+ "autoname": "SUBALLOC-.YYYY.-.#####",
+ "creation": "2024-05-16 00:00:00",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "item_code",
-  "item_name",
-  "date",
+  "item_allocation_sheet",
+  "sales_partner",
   "column_break_1",
+  "item_code",
   "warehouse",
-  "total_available_stock",
-  "allocation_section",
-  "partner_allocations"
+  "quota",
+  "section_break_1",
+  "sub_allocations"
  ],
  "fields": [
   {
-   "fieldname": "item_code",
+   "fieldname": "item_allocation_sheet",
    "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Item Code",
-   "options": "Item",
+   "label": "Item Allocation Sheet",
+   "options": "Item Allocation Sheet",
    "reqd": 1
   },
   {
-   "fieldname": "item_name",
-   "fieldtype": "Data",
-   "label": "Item Name",
+   "fieldname": "sales_partner",
+   "fieldtype": "Link",
+   "label": "Sales Partner",
+   "options": "Sales Partner",
    "read_only": 1
-  },
-  {
-   "fieldname": "date",
-   "fieldtype": "Date",
-   "label": "Date",
-   "reqd": 1
   },
   {
    "fieldname": "column_break_1",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "warehouse",
+   "fieldname": "item_code",
    "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Warehouse",
-   "options": "Warehouse",
-   "reqd": 1
-  },
-  {
-   "fieldname": "total_available_stock",
-   "fieldtype": "Float",
-   "label": "Total Available Stock",
+   "label": "Item Code",
+   "options": "Item",
    "read_only": 1
   },
   {
-   "fieldname": "allocation_section",
-   "fieldtype": "Section Break",
-   "label": "Partner Quota Distribution"
+   "fieldname": "warehouse",
+   "fieldtype": "Link",
+   "label": "Warehouse",
+   "options": "Warehouse",
+   "read_only": 1
   },
   {
-   "fieldname": "partner_allocations",
+   "fieldname": "quota",
+   "fieldtype": "Float",
+   "label": "Quota Assigned",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break",
+   "label": "Sales Order Allocation"
+  },
+  {
+   "fieldname": "sub_allocations",
    "fieldtype": "Table",
-   "label": "Partner Quotas",
-   "options": "Partner Allocation Detail",
+   "label": "Sub Allocation Details",
+   "options": "Sub Allocation Detail",
    "reqd": 1
   }
  ],
@@ -72,7 +72,7 @@
  "modified": "2024-05-16 00:00:00",
  "modified_by": "Administrator",
  "module": "Packing",
- "name": "Item Allocation Sheet",
+ "name": "Partner Sub Allocation",
  "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
