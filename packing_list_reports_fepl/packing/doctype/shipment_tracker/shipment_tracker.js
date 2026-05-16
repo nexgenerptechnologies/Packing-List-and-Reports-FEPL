@@ -22,6 +22,11 @@ frappe.ui.form.on('Shipment Tracker', {
 			},
 			callback: function(r) {
 				if (r.message && r.message.length > 0) {
+					// Set currency from first PO if not set
+					if (!frm.doc.currency && r.message[0].currency) {
+						frm.set_value('currency', r.message[0].currency);
+					}
+					
 					frm.clear_table('shipment_items');
 					r.message.forEach(row => {
 						let child = frm.add_child('shipment_items');
@@ -31,7 +36,6 @@ frappe.ui.form.on('Shipment Tracker', {
 						child.qty = row.qty;
 						child.rate = row.rate;
 						child.line_number = row.custom_line_number || row.line_number;
-						// Store hidden links for PR creation
 						child.purchase_order = row.purchase_order;
 						child.purchase_order_item = row.purchase_order_item;
 					});

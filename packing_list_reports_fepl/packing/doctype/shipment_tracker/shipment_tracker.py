@@ -23,7 +23,8 @@ def get_outstanding_po_items(supplier, purchase_orders):
 			poi.rate, 
 			poi.custom_line_number,
 			poi.parent as purchase_order,
-			poi.name as purchase_order_item
+			poi.name as purchase_order_item,
+			po.currency
 		FROM `tabPurchase Order Item` poi
 		JOIN `tabPurchase Order` po ON poi.parent = po.name
 		WHERE po.supplier = %s
@@ -40,7 +41,6 @@ def make_purchase_receipt(docname):
 	target_doc = frappe.new_doc("Purchase Receipt")
 	target_doc.supplier = source_doc.supplier
 	
-	# Get company from first PO item or global default
 	company = None
 	if source_doc.shipment_items:
 		for item in source_doc.shipment_items:
@@ -51,6 +51,7 @@ def make_purchase_receipt(docname):
 					
 	target_doc.company = company or frappe.defaults.get_global_default("company")
 	target_doc.posting_date = frappe.utils.nowdate()
+	target_doc.currency = source_doc.currency
 	
 	for item in source_doc.shipment_items:
 		if item.qty > 0:

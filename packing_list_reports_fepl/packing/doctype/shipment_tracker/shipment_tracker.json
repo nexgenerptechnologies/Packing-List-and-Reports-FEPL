@@ -12,6 +12,7 @@
   "column_break_1",
   "etd",
   "eta",
+  "currency",
   "excel_file",
   "section_break_1",
   "remarks",
@@ -54,6 +55,12 @@
    "label": "Expected Time of Arrival (ETA)"
   },
   {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
    "fieldname": "excel_file",
    "fieldtype": "Attach",
    "label": "Upload Shipment Excel"
@@ -76,8 +83,7 @@
    "fieldname": "shipment_items",
    "fieldtype": "Table",
    "label": "Items",
-   "options": "Shipment Item",
-   "reqd": 1
+   "options": "Shipment Item"
   }
  ],
  "index_web_pages_for_search": 1,
