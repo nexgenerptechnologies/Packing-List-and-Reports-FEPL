@@ -10,7 +10,9 @@
   "description",
   "qty",
   "rate",
-  "line_number"
+  "line_number",
+  "purchase_order",
+  "purchase_order_item"
  ],
  "fields": [
   {
@@ -52,6 +54,19 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Line Number"
+  },
+  {
+   "fieldname": "purchase_order",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Purchase Order",
+   "options": "Purchase Order"
+  },
+  {
+   "fieldname": "purchase_order_item",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Purchase Order Item"
   }
  ],
  "index_web_pages_for_search": 1,
