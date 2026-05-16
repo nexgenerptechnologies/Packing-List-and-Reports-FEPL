@@ -3,7 +3,9 @@ from frappe.model.document import Document
 from frappe.model.mapper import get_mapped_doc
 
 class ShipmentTracker(Document):
-	pass
+	def validate(self):
+		if not self.shipment_items or len(self.shipment_items) == 0:
+			frappe.throw("Please fetch or add items to the shipment before saving/submitting.")
 
 @frappe.whitelist()
 def get_outstanding_po_items(supplier, purchase_orders):
@@ -24,7 +26,8 @@ def get_outstanding_po_items(supplier, purchase_orders):
 			poi.custom_line_number,
 			poi.parent as purchase_order,
 			poi.name as purchase_order_item,
-			po.currency
+			po.currency,
+			po.conversion_rate
 		FROM `tabPurchase Order Item` poi
 		JOIN `tabPurchase Order` po ON poi.parent = po.name
 		WHERE po.supplier = %s
@@ -41,15 +44,23 @@ def make_purchase_receipt(docname):
 	target_doc.supplier = source_doc.supplier
 	
 	company = None
+	currency = None
+	conversion_rate = 1.0
+	
 	if source_doc.shipment_items:
 		for item in source_doc.shipment_items:
 			if item.purchase_order:
-				company = frappe.db.get_value("Purchase Order", item.purchase_order, "company")
-				if company: break
+				po_data = frappe.db.get_value("Purchase Order", item.purchase_order, ["company", "currency", "conversion_rate"], as_dict=1)
+				if po_data:
+					company = po_data.company
+					currency = po_data.currency
+					conversion_rate = po_data.conversion_rate
+					break
 					
 	target_doc.company = company or frappe.defaults.get_global_default("company")
 	target_doc.posting_date = frappe.utils.nowdate()
-	target_doc.currency = source_doc.currency
+	target_doc.currency = currency or source_doc.currency
+	target_doc.conversion_rate = conversion_rate
 	
 	for item in source_doc.shipment_items:
 		if item.qty > 0:
@@ -61,11 +72,11 @@ def make_purchase_receipt(docname):
 			pr_item.purchase_order_item = item.purchase_order_item
 			
 			if item.purchase_order_item:
-				po_data = frappe.db.get_value("Purchase Order Item", item.purchase_order_item, ["uom", "stock_uom", "conversion_factor"], as_dict=1)
-				if po_data:
-					pr_item.uom = po_data.uom
-					pr_item.stock_uom = po_data.stock_uom
-					pr_item.conversion_factor = po_data.conversion_factor
+				po_item_data = frappe.db.get_value("Purchase Order Item", item.purchase_order_item, ["uom", "stock_uom", "conversion_factor"], as_dict=1)
+				if po_item_data:
+					pr_item.uom = po_item_data.uom
+					pr_item.stock_uom = po_item_data.stock_uom
+					pr_item.conversion_factor = po_item_data.conversion_factor
 					
 	target_doc.insert()
 	return target_doc.name
@@ -79,14 +90,11 @@ def create_purchase_invoices(docname):
 	created_invoices = []
 	for row in source_doc.shipment_invoices:
 		if not row.purchase_invoice:
-			# Create PI from PR
 			from erpnext.stock.doctype.purchase_receipt.purchase_receipt import make_purchase_invoice
 			pi = make_purchase_invoice(source_doc.purchase_receipt)
 			pi.bill_no = row.bill_no
 			pi.bill_date = row.bill_date
 			pi.insert()
-			
 			row.db_set("purchase_invoice", pi.name)
 			created_invoices.append(pi.name)
-			
 	return created_invoices
