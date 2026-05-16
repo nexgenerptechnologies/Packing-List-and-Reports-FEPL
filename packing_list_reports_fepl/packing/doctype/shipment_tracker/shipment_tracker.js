@@ -7,14 +7,14 @@ frappe.ui.form.on('Shipment Tracker', {
 			}).addClass('btn-primary');
 		}
 		
-		// 2. Receipt Button
+		// 2. Receipt Button: STRICTLY hide if already linked
 		if (frm.doc.docstatus === 1 && !frm.doc.purchase_receipt) {
 			frm.add_custom_button(__('Create Purchase Receipt'), function() {
 				frm.events.make_purchase_receipt(frm);
 			}).addClass('btn-primary');
 		}
 		
-		// 3. Smart Splitting Button: Show if Receipt is linked
+		// 3. Smart Splitting Button
 		if (frm.doc.purchase_receipt) {
 			frm.add_custom_button(__('Create Purchase Invoices (Smart Split)'), function() {
 				frm.events.create_purchase_invoices(frm);
@@ -39,12 +39,12 @@ frappe.ui.form.on('Shipment Tracker', {
 						child.description = row.description;
 						child.qty = row.qty;
 						child.rate = row.rate;
-						child.line_number = row.custom_line_number || row.line_number;
+						child.line_number = row.line_number;
 						child.purchase_order = row.purchase_order;
 						child.purchase_order_item = row.purchase_order_item;
 					});
 					frm.refresh_field('shipment_items');
-					frappe.show_alert({message: __('Fetched {0} Pending Items. Please assign "Supplier Invoice #" in the grid for smart splitting.', [r.message.length]), color: 'blue'});
+					frappe.show_alert({message: __('Fetched {0} Pending Items. Validation will be strict on Receipt creation.', [r.message.length]), color: 'blue'});
 				}
 			}
 		});
@@ -55,7 +55,7 @@ frappe.ui.form.on('Shipment Tracker', {
 			args: { docname: frm.doc.name },
 			callback: function(r) {
 				if (r.message) {
-					// After creating PR, update the link and reload immediately
+					// Update and reload to hide button
 					frappe.db.set_value('Shipment Tracker', frm.doc.name, 'purchase_receipt', r.message)
 						.then(() => {
 							frm.reload_doc();
@@ -66,23 +66,13 @@ frappe.ui.form.on('Shipment Tracker', {
 		});
 	},
 	create_purchase_invoices: function(frm) {
-		if (!frm.doc.shipment_invoices || frm.doc.shipment_invoices.length === 0) {
-			frappe.msgprint(__('Please enter the Invoice Numbers in the table below first.'));
-			return;
-		}
-		
-		let items_missing_inv = frm.doc.shipment_items.filter(it => !it.supplier_invoice);
-		if (items_missing_inv.length > 0) {
-			frappe.msgprint(__('Warning: {0} items in the grid do not have a "Supplier Invoice #" assigned. They will be skipped.', [items_missing_inv.length]));
-		}
-
-		frappe.confirm(__('This will automatically split your 900+ items into separate Purchase Invoices based on the "Supplier Invoice #" column. Continue?'), () => {
+		frappe.confirm(__('Split 900+ items into separate Purchase Invoices based on the "Supplier Invoice #" column?'), () => {
 			frappe.call({
 				method: "packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.create_purchase_invoices",
 				args: { docname: frm.doc.name },
 				callback: function(r) {
 					if (r.message) {
-						frappe.msgprint(__('Success! Created {0} Smart-Split Purchase Invoices.', [r.message.length]));
+						frappe.msgprint(__('Created {0} Smart-Split Purchase Invoices.', [r.message.length]));
 						frm.reload_doc();
 					}
 				}

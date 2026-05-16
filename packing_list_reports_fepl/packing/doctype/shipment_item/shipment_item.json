@@ -11,6 +11,8 @@
   "qty",
   "rate",
   "line_number",
+  "supplier_invoice",
+  "bill_date",
   "purchase_order",
   "purchase_order_item"
  ],
@@ -61,6 +63,12 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Supplier Invoice #"
+  },
+  {
+   "fieldname": "bill_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Invoice Date"
   },
   {
    "fieldname": "purchase_order",
