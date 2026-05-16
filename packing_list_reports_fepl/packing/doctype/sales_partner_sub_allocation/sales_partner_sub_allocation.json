@@ -6,63 +6,35 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "item_allocation_sheet",
   "sales_partner",
-  "column_break_1",
-  "item_code",
-  "warehouse",
-  "quota",
+  "date",
   "section_break_1",
   "sub_allocations"
  ],
  "fields": [
   {
-   "fieldname": "item_allocation_sheet",
+   "fieldname": "sales_partner",
    "fieldtype": "Link",
-   "label": "Item Allocation Sheet",
-   "options": "Item Allocation Sheet",
+   "in_list_view": 1,
+   "label": "Sales Partner",
+   "options": "Sales Partner",
    "reqd": 1
   },
   {
-   "fieldname": "sales_partner",
-   "fieldtype": "Link",
-   "label": "Sales Partner",
-   "options": "Sales Partner",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_1",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "item_code",
-   "fieldtype": "Link",
-   "label": "Item Code",
-   "options": "Item",
-   "read_only": 1
-  },
-  {
-   "fieldname": "warehouse",
-   "fieldtype": "Link",
-   "label": "Warehouse",
-   "options": "Warehouse",
-   "read_only": 1
-  },
-  {
-   "fieldname": "quota",
-   "fieldtype": "Float",
-   "label": "Quota Assigned",
-   "read_only": 1
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "label": "Date",
+   "reqd": 1
   },
   {
    "fieldname": "section_break_1",
    "fieldtype": "Section Break",
-   "label": "Sales Order Allocation"
+   "label": "My Item Allocations"
   },
   {
    "fieldname": "sub_allocations",
    "fieldtype": "Table",
-   "label": "Sub Allocation Details",
+   "label": "Item Allocations",
    "options": "Sub Allocation Detail",
    "reqd": 1
   }
@@ -72,7 +44,7 @@
  "modified": "2024-05-16 00:00:00",
  "modified_by": "Administrator",
  "module": "Packing",
- "name": "Partner Sub Allocation",
+ "name": "Sales Partner Sub Allocation",
  "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [

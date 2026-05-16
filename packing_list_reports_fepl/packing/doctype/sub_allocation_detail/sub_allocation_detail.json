@@ -5,44 +5,63 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "sales_order",
-  "sales_order_item",
+  "item_code",
+  "item_name",
+  "description",
+  "quota_qty",
   "customer",
-  "column_break_1",
+  "sales_order",
   "allocated_qty",
   "stock_reservation_entry"
  ],
  "fields": [
   {
-   "fieldname": "sales_order",
+   "fieldname": "item_code",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Sales Order",
-   "options": "Sales Order",
+   "label": "Item Code",
+   "options": "Item",
    "reqd": 1
   },
   {
-   "fieldname": "sales_order_item",
+   "fieldname": "item_name",
    "fieldtype": "Data",
-   "label": "Sales Order Item",
+   "in_list_view": 1,
+   "label": "Item Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description",
+   "read_only": 1
+  },
+  {
+   "fieldname": "quota_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Allocated Qty (Quota)",
    "read_only": 1
   },
   {
    "fieldname": "customer",
-   "fieldtype": "Data",
+   "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Customer",
-   "read_only": 1
+   "options": "Customer"
   },
   {
-   "fieldname": "column_break_1",
-   "fieldtype": "Column Break"
+   "fieldname": "sales_order",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Sales Order",
+   "options": "Sales Order"
   },
   {
    "fieldname": "allocated_qty",
    "fieldtype": "Float",
    "in_list_view": 1,
-   "label": "Allocated Qty",
+   "label": "Qty Allocation",
    "reqd": 1
   },
   {
