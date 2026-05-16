@@ -1,0 +1,55 @@
+{
+ "actions": [],
+ "creation": "2024-05-16 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "bill_no",
+  "bill_date",
+  "amount",
+  "purchase_invoice"
+ ],
+ "fields": [
+  {
+   "fieldname": "bill_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Invoice Number",
+   "reqd": 1
+  },
+  {
+   "fieldname": "bill_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Invoice Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Amount",
+   "options": "currency"
+  },
+  {
+   "fieldname": "purchase_invoice",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Purchase Invoice",
+   "options": "Purchase Invoice",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "modified": "2024-05-16 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Packing",
+ "name": "Shipment Invoice",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

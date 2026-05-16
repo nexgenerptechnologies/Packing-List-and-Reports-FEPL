@@ -9,6 +9,7 @@
   "supplier",
   "shipment_pos",
   "date",
+  "purchase_receipt",
   "column_break_1",
   "etd",
   "eta",
@@ -17,7 +18,9 @@
   "section_break_1",
   "remarks",
   "items_section",
-  "shipment_items"
+  "shipment_items",
+  "invoices_section",
+  "shipment_invoices"
  ],
  "fields": [
   {
@@ -41,6 +44,12 @@
    "reqd": 1
   },
   {
+   "fieldname": "purchase_receipt",
+   "fieldtype": "Link",
+   "label": "Purchase Receipt",
+   "options": "Purchase Receipt"
+  },
+  {
    "fieldname": "column_break_1",
    "fieldtype": "Column Break"
   },
@@ -58,7 +67,8 @@
    "fieldname": "currency",
    "fieldtype": "Link",
    "label": "Currency",
-   "options": "Currency"
+   "options": "Currency",
+   "read_only": 1
   },
   {
    "fieldname": "excel_file",
@@ -84,6 +94,17 @@
    "fieldtype": "Table",
    "label": "Items",
    "options": "Shipment Item"
+  },
+  {
+   "fieldname": "invoices_section",
+   "fieldtype": "Section Break",
+   "label": "Supplier Invoices"
+  },
+  {
+   "fieldname": "shipment_invoices",
+   "fieldtype": "Table",
+   "label": "Invoices",
+   "options": "Shipment Invoice"
   }
  ],
  "index_web_pages_for_search": 1,

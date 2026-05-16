@@ -37,7 +37,6 @@ def get_outstanding_po_items(supplier, purchase_orders):
 @frappe.whitelist()
 def make_purchase_receipt(docname):
 	source_doc = frappe.get_doc("Shipment Tracker", docname)
-	
 	target_doc = frappe.new_doc("Purchase Receipt")
 	target_doc.supplier = source_doc.supplier
 	
@@ -46,8 +45,7 @@ def make_purchase_receipt(docname):
 		for item in source_doc.shipment_items:
 			if item.purchase_order:
 				company = frappe.db.get_value("Purchase Order", item.purchase_order, "company")
-				if company:
-					break
+				if company: break
 					
 	target_doc.company = company or frappe.defaults.get_global_default("company")
 	target_doc.posting_date = frappe.utils.nowdate()
@@ -71,3 +69,24 @@ def make_purchase_receipt(docname):
 					
 	target_doc.insert()
 	return target_doc.name
+
+@frappe.whitelist()
+def create_purchase_invoices(docname):
+	source_doc = frappe.get_doc("Shipment Tracker", docname)
+	if not source_doc.purchase_receipt:
+		frappe.throw("Please link a Purchase Receipt first.")
+		
+	created_invoices = []
+	for row in source_doc.shipment_invoices:
+		if not row.purchase_invoice:
+			# Create PI from PR
+			from erpnext.stock.doctype.purchase_receipt.purchase_receipt import make_purchase_invoice
+			pi = make_purchase_invoice(source_doc.purchase_receipt)
+			pi.bill_no = row.bill_no
+			pi.bill_date = row.bill_date
+			pi.insert()
+			
+			row.db_set("purchase_invoice", pi.name)
+			created_invoices.append(pi.name)
+			
+	return created_invoices

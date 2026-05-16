@@ -10,23 +10,23 @@ frappe.ui.form.on('Shipment Tracker', {
 				frm.events.make_purchase_receipt(frm);
 			});
 		}
+		
+		if (frm.doc.purchase_receipt) {
+			frm.add_custom_button(__('Create Purchase Invoices'), function() {
+				frm.events.create_purchase_invoices(frm);
+			}, __('Supplier Invoices'));
+		}
 	},
 	fetch_pending_items: function(frm) {
 		let pos = frm.doc.shipment_pos.map(d => d.purchase_order);
-		
 		frappe.call({
 			method: "packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.get_outstanding_po_items",
-			args: {
-				supplier: frm.doc.supplier,
-				purchase_orders: pos
-			},
+			args: { supplier: frm.doc.supplier, purchase_orders: pos },
 			callback: function(r) {
 				if (r.message && r.message.length > 0) {
-					// Set currency from first PO if not set
 					if (!frm.doc.currency && r.message[0].currency) {
 						frm.set_value('currency', r.message[0].currency);
 					}
-					
 					frm.clear_table('shipment_items');
 					r.message.forEach(row => {
 						let child = frm.add_child('shipment_items');
@@ -40,9 +40,7 @@ frappe.ui.form.on('Shipment Tracker', {
 						child.purchase_order_item = row.purchase_order_item;
 					});
 					frm.refresh_field('shipment_items');
-					frappe.show_alert({message: __('Fetched {0} Pending Items from {1} POs', [r.message.length, pos.length]), color: 'blue'});
-				} else {
-					frappe.msgprint(__('No pending items found for the selected Purchase Orders.'));
+					frappe.show_alert({message: __('Fetched {0} Pending Items', [r.message.length]), color: 'blue'});
 				}
 			}
 		});
@@ -50,14 +48,31 @@ frappe.ui.form.on('Shipment Tracker', {
 	make_purchase_receipt: function(frm) {
 		frappe.call({
 			method: "packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.make_purchase_receipt",
-			args: {
-				docname: frm.doc.name
-			},
+			args: { docname: frm.doc.name },
 			callback: function(r) {
 				if (r.message) {
 					frappe.set_route("Form", "Purchase Receipt", r.message);
 				}
 			}
+		});
+	},
+	create_purchase_invoices: function(frm) {
+		if (!frm.doc.shipment_invoices || frm.doc.shipment_invoices.length === 0) {
+			frappe.msgprint(__('Please enter at least one Invoice Number and Date in the table below.'));
+			return;
+		}
+		
+		frappe.confirm(__('This will create Draft Purchase Invoices for all lines in the table. Continue?'), () => {
+			frappe.call({
+				method: "packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.create_purchase_invoices",
+				args: { docname: frm.doc.name },
+				callback: function(r) {
+					if (r.message) {
+						frappe.msgprint(__('Created {0} Purchase Invoice Drafts.', [r.message.length]));
+						frm.reload_doc();
+					}
+				}
+			});
 		});
 	}
 });
@@ -65,18 +80,10 @@ frappe.ui.form.on('Shipment Tracker', {
 frappe.ui.form.on('Shipment Tracker', {
 	onload: function(frm) {
 		frm.set_query('purchase_order', 'shipment_pos', function() {
-			return {
-				filters: {
-					supplier: frm.doc.supplier,
-					docstatus: 1,
-					status: ["not in", ["Closed", "Completed", "Cancelled"]],
-					per_received: ["<", 100]
-				}
-			};
+			return { filters: { supplier: frm.doc.supplier, docstatus: 1, per_received: ["<", 100] } };
 		});
-	},
-	supplier: function(frm) {
-		frm.clear_table('shipment_pos');
-		frm.refresh_field('shipment_pos');
+		frm.set_query('purchase_receipt', function() {
+			return { filters: { supplier: frm.doc.supplier, docstatus: ["in", [0, 1]] } };
+		});
 	}
 });
