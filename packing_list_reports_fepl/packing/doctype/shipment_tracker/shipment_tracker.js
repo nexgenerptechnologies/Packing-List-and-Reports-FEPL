@@ -1,21 +1,24 @@
 frappe.ui.form.on('Shipment Tracker', {
 	refresh: function(frm) {
-		// 1. Fetch Button
+		// Clear existing custom buttons to avoid duplicates on refresh
+		frm.clear_custom_buttons();
+
+		// 1. Fetch Button: Only on Draft
 		if (frm.doc.docstatus === 0 && frm.doc.supplier && frm.doc.shipment_pos && frm.doc.shipment_pos.length > 0) {
 			frm.add_custom_button(__('Fetch Pending Orders'), function() {
 				frm.events.fetch_pending_items(frm);
 			}).addClass('btn-primary');
 		}
 		
-		// 2. Receipt Button: STRICTLY hide if already linked
+		// 2. Receipt Button: Only if Submitted and NO Receipt linked
 		if (frm.doc.docstatus === 1 && !frm.doc.purchase_receipt) {
 			frm.add_custom_button(__('Create Purchase Receipt'), function() {
 				frm.events.make_purchase_receipt(frm);
 			}).addClass('btn-primary');
 		}
 		
-		// 3. Smart Splitting Button
-		if (frm.doc.purchase_receipt) {
+		// 3. Invoice Button: Only if Receipt IS linked
+		if (frm.doc.docstatus === 1 && frm.doc.purchase_receipt) {
 			frm.add_custom_button(__('Create Purchase Invoices (Smart Split)'), function() {
 				frm.events.create_purchase_invoices(frm);
 			}).addClass('btn-primary');
@@ -55,11 +58,12 @@ frappe.ui.form.on('Shipment Tracker', {
 			args: { docname: frm.doc.name },
 			callback: function(r) {
 				if (r.message) {
-					// Update and reload to hide button
+					// Force save the link and then reload everything
 					frappe.db.set_value('Shipment Tracker', frm.doc.name, 'purchase_receipt', r.message)
 						.then(() => {
-							frm.reload_doc();
-							frappe.set_route("Form", "Purchase Receipt", r.message);
+							frm.reload_doc().then(() => {
+								frappe.set_route("Form", "Purchase Receipt", r.message);
+							});
 						});
 				}
 			}
