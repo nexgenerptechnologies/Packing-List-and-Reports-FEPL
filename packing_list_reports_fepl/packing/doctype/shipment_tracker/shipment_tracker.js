@@ -1,20 +1,24 @@
 frappe.ui.form.on('Shipment Tracker', {
 	refresh: function(frm) {
+		// 1. Fetch Button: Only show on Draft and if POs are selected
 		if (frm.doc.docstatus === 0 && frm.doc.supplier && frm.doc.shipment_pos && frm.doc.shipment_pos.length > 0) {
 			frm.add_custom_button(__('Fetch Pending Orders'), function() {
 				frm.events.fetch_pending_items(frm);
 			}).addClass('btn-primary');
 		}
-		if (frm.doc.docstatus === 1) {
+		
+		// 2. Receipt Button: Only show if Submitted and NOT yet linked to a Receipt
+		if (frm.doc.docstatus === 1 && !frm.doc.purchase_receipt) {
 			frm.add_custom_button(__('Create Purchase Receipt'), function() {
 				frm.events.make_purchase_receipt(frm);
 			}).addClass('btn-primary');
 		}
 		
+		// 3. Invoice Button: Only show if a Receipt is already linked
 		if (frm.doc.purchase_receipt) {
 			frm.add_custom_button(__('Create Purchase Invoices'), function() {
 				frm.events.create_purchase_invoices(frm);
-			}, __('Supplier Invoices')).addClass('btn-primary');
+			}).addClass('btn-primary');
 		}
 	},
 	fetch_pending_items: function(frm) {
@@ -24,11 +28,9 @@ frappe.ui.form.on('Shipment Tracker', {
 			args: { supplier: frm.doc.supplier, purchase_orders: pos },
 			callback: function(r) {
 				if (r.message && r.message.length > 0) {
-					// Force Currency Override
 					if (r.message[0].currency) {
 						frm.set_value('currency', r.message[0].currency);
 					}
-					
 					frm.clear_table('shipment_items');
 					r.message.forEach(row => {
 						let child = frm.add_child('shipment_items');
@@ -53,7 +55,11 @@ frappe.ui.form.on('Shipment Tracker', {
 			args: { docname: frm.doc.name },
 			callback: function(r) {
 				if (r.message) {
-					frappe.set_route("Form", "Purchase Receipt", r.message);
+					// After creating PR, update the link and reload
+					frm.set_value('purchase_receipt', r.message);
+					frm.save().then(() => {
+						frappe.set_route("Form", "Purchase Receipt", r.message);
+					});
 				}
 			}
 		});
