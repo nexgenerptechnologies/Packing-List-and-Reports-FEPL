@@ -10,9 +10,7 @@
   "description",
   "qty",
   "rate",
-  "custom_line_number",
-  "purchase_order",
-  "purchase_order_item"
+  "line_number"
  ],
  "fields": [
   {
@@ -50,23 +48,10 @@
    "label": "Rate"
   },
   {
-   "fieldname": "custom_line_number",
+   "fieldname": "line_number",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Custom Line Number"
-  },
-  {
-   "fieldname": "purchase_order",
-   "fieldtype": "Link",
-   "label": "Purchase Order",
-   "options": "Purchase Order",
-   "read_only": 1
-  },
-  {
-   "fieldname": "purchase_order_item",
-   "fieldtype": "Data",
-   "label": "Purchase Order Item",
-   "read_only": 1
+   "label": "Line Number"
   }
  ],
  "index_web_pages_for_search": 1,
