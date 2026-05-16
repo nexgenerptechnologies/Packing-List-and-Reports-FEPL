@@ -1,6 +1,7 @@
 import frappe
 from frappe.model.document import Document
-from frappe.utils import flt, _
+from frappe.utils import flt
+from frappe import _
 
 class SalesPartnerSubAllocation(Document):
 	def validate(self):
