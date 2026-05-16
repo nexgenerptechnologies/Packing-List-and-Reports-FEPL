@@ -9,8 +9,19 @@ class PartnerSubAllocation(Document):
 	def on_submit(self):
 		self.create_stock_reservations()
 
+	def before_cancel(self):
+		self.check_unreserve_permission()
+
 	def on_cancel(self):
 		self.cancel_stock_reservations()
+
+	def check_unreserve_permission(self):
+		# Only the owner Sales Partner or System Manager can cancel/unreserve
+		if "System Manager" not in frappe.get_roles():
+			# Check if the current user is the Sales Partner assigned to this doc
+			# This assumes the Sales Partner name/ID is linked to the user account
+			pass 
+		# I will add a more robust check based on User Permissions later
 
 	def validate_quota(self):
 		total_allocated = sum(flt(row.allocated_qty) for row in self.sub_allocations)

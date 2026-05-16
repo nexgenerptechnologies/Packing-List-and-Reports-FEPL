@@ -12,6 +12,8 @@
   "column_break_1",
   "warehouse",
   "total_available_stock",
+  "excel_file",
+  "total_quota",
   "allocation_section",
   "partner_allocations"
  ],
@@ -52,6 +54,17 @@
    "fieldname": "total_available_stock",
    "fieldtype": "Float",
    "label": "Total Available Stock",
+   "read_only": 1
+  },
+  {
+   "fieldname": "excel_file",
+   "fieldtype": "Attach",
+   "label": "Upload Planning Excel"
+  },
+  {
+   "fieldname": "total_quota",
+   "fieldtype": "Float",
+   "label": "Total Quota Assigned",
    "read_only": 1
   },
   {
