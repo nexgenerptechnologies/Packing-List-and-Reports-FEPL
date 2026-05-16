@@ -5,10 +5,49 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "item_code",
+  "item_name",
+  "description",
+  "total_qty",
+  "requested_qty",
   "sales_partner",
   "allocated_qty"
  ],
  "fields": [
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item Code",
+   "options": "Item"
+  },
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Item Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Total Qty",
+   "read_only": 1
+  },
+  {
+   "fieldname": "requested_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Requested Qty",
+   "read_only": 1
+  },
   {
    "fieldname": "sales_partner",
    "fieldtype": "Link",

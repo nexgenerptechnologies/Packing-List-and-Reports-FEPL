@@ -6,32 +6,14 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "item_code",
-  "item_name",
   "date",
-  "column_break_1",
-  "warehouse",
-  "total_available_stock",
   "excel_file",
+  "column_break_1",
   "total_quota",
   "allocation_section",
-  "partner_allocations"
+  "items"
  ],
  "fields": [
-  {
-   "fieldname": "item_code",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Item Code",
-   "options": "Item",
-   "reqd": 1
-  },
-  {
-   "fieldname": "item_name",
-   "fieldtype": "Data",
-   "label": "Item Name",
-   "read_only": 1
-  },
   {
    "fieldname": "date",
    "fieldtype": "Date",
@@ -39,27 +21,13 @@
    "reqd": 1
   },
   {
-   "fieldname": "column_break_1",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "warehouse",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Warehouse",
-   "options": "Warehouse",
-   "reqd": 1
-  },
-  {
-   "fieldname": "total_available_stock",
-   "fieldtype": "Float",
-   "label": "Total Available Stock",
-   "read_only": 1
-  },
-  {
    "fieldname": "excel_file",
    "fieldtype": "Attach",
    "label": "Upload Planning Excel"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "total_quota",
@@ -70,12 +38,12 @@
   {
    "fieldname": "allocation_section",
    "fieldtype": "Section Break",
-   "label": "Partner Quota Distribution"
+   "label": "Bulk Item Distribution"
   },
   {
-   "fieldname": "partner_allocations",
+   "fieldname": "items",
    "fieldtype": "Table",
-   "label": "Partner Quotas",
+   "label": "Item Allocations",
    "options": "Partner Allocation Detail",
    "reqd": 1
   }

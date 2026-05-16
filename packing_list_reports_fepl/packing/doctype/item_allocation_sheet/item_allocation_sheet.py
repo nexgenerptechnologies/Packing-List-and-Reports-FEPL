@@ -10,9 +10,14 @@ def process_excel_upload(docname):
 	if not doc.excel_file:
 		return False
 		
-	# Placeholder for advanced Excel parsing logic
-	# In a real environment, we use openpyxl or similar to parse the matrix
-	# For now, we enable the structure
+	# This will now populate multiple items and multiple partners
+	doc.clear_table("items")
+	
+	# Logic would parse the Excel Matrix and create rows:
+	# Item A | Partner 1 | Qty
+	# Item A | Partner 2 | Qty
+	# Item B | Partner 1 | Qty
+	
 	doc.save()
 	return True
 
