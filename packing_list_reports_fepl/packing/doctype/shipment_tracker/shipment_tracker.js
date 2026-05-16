@@ -1,6 +1,7 @@
 frappe.ui.form.on('Shipment Tracker', {
 	refresh: function(frm) {
-		if (frm.doc.docstatus === 0 && frm.doc.shipment_pos && frm.doc.shipment_pos.length > 0) {
+		// Show Fetch button even if not saved yet, as long as supplier and POs are there
+		if (frm.doc.docstatus === 0 && frm.doc.supplier && frm.doc.shipment_pos && frm.doc.shipment_pos.length > 0) {
 			frm.add_custom_button(__('Fetch Pending Orders'), function() {
 				frm.events.fetch_pending_items(frm);
 			}).addClass('btn-primary');

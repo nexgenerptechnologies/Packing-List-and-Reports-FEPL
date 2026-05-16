@@ -3,9 +3,10 @@ from frappe.model.document import Document
 from frappe.model.mapper import get_mapped_doc
 
 class ShipmentTracker(Document):
-	def validate(self):
+	def before_submit(self):
+		# Only block if trying to SUBMIT without items
 		if not self.shipment_items or len(self.shipment_items) == 0:
-			frappe.throw("Please fetch or add items to the shipment before saving/submitting.")
+			frappe.throw("Please fetch or add items to the shipment before submitting.")
 
 @frappe.whitelist()
 def get_outstanding_po_items(supplier, purchase_orders):
