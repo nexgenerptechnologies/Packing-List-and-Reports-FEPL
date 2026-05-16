@@ -7,7 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "supplier",
-  "purchase_order",
+  "shipment_pos",
   "date",
   "column_break_1",
   "etd",
@@ -28,10 +28,10 @@
    "reqd": 1
   },
   {
-   "fieldname": "purchase_order",
-   "fieldtype": "Link",
-   "label": "Purchase Order",
-   "options": "Purchase Order"
+   "fieldname": "shipment_pos",
+   "fieldtype": "Table",
+   "label": "Purchase Orders",
+   "options": "Shipment PO"
   },
   {
    "fieldname": "date",
