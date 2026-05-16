@@ -16,11 +16,12 @@ def get_outstanding_po_items(supplier, purchase_orders):
 	if not purchase_orders:
 		return []
 
+	# Use custom_line_number if exists, otherwise fallback to idx (sequence number)
 	return frappe.db.sql("""
 		SELECT 
 			poi.item_code, poi.item_name, poi.description, 
 			(poi.qty - poi.received_qty) as qty, poi.rate, 
-			COALESCE(NULLIF(poi.custom_line_number, ''), poi.line_number) as line_number,
+			poi.custom_line_number as line_number,
 			poi.parent as purchase_order, poi.name as purchase_order_item,
 			po.currency, po.conversion_rate
 		FROM `tabPurchase Order Item` poi
@@ -39,7 +40,6 @@ def make_purchase_receipt(docname):
 	target_doc = frappe.new_doc("Purchase Receipt")
 	target_doc.supplier = source_doc.supplier
 	
-	# Initial data from first item
 	company, currency, conversion_rate = None, None, 1.0
 	if source_doc.shipment_items:
 		po_data = frappe.db.get_value("Purchase Order", source_doc.shipment_items[0].purchase_order, ["company", "currency", "conversion_rate"], as_dict=1)
@@ -53,24 +53,25 @@ def make_purchase_receipt(docname):
 	
 	for item in source_doc.shipment_items:
 		if item.qty > 0:
-			# STRICT VALIDATION against PO Item
 			if not item.purchase_order_item:
 				frappe.throw(_("Row {0}: Item {1} is not linked to any Purchase Order Item. Please Fetch Pending Orders again.").format(item.idx, item.item_code))
 			
 			po_item = frappe.get_doc("Purchase Order Item", item.purchase_order_item)
-			po_line_number = po_item.custom_line_number or po_item.line_number
+			# Fallback if custom_line_number is missing in DB record
+			po_line_number = po_item.get("custom_line_number") or str(po_item.idx)
 			
-			# Check discrepancy
 			discrepancies = []
 			if item.item_code != po_item.item_code: discrepancies.append(_("Item Code mismatch (Expected: {0}, Got: {1})").format(po_item.item_code, item.item_code))
 			if item.qty > (po_item.qty - po_item.received_qty): discrepancies.append(_("Quantity exceeds pending amount (Pending: {0}, Got: {1})").format(po_item.qty - po_item.received_qty, item.qty))
 			if abs(float(item.rate) - float(po_item.rate)) > 0.01: discrepancies.append(_("Rate mismatch (Expected: {0}, Got: {1})").format(po_item.rate, item.rate))
-			if str(item.line_number) != str(po_line_number): discrepancies.append(_("Line Number mismatch (Expected: {0}, Got: {1})").format(po_line_number, item.line_number))
+			
+			# Only check line number if it's provided in the item
+			if item.line_number and str(item.line_number) != str(po_line_number):
+				discrepancies.append(_("Line Number mismatch (Expected: {0}, Got: {1})").format(po_line_number, item.line_number))
 			
 			if discrepancies:
 				frappe.throw(_("Row {0}: Validation Failed for Item {1}.\n{2}").format(item.idx, item.item_code, "\n".join(discrepancies)))
 
-			# Populate PR item
 			pr_item = target_doc.append("items", {})
 			pr_item.item_code = item.item_code
 			pr_item.qty = item.qty
