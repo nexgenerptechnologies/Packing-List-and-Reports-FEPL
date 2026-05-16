@@ -39,7 +39,17 @@ def make_purchase_receipt(docname):
 	
 	target_doc = frappe.new_doc("Purchase Receipt")
 	target_doc.supplier = source_doc.supplier
-	target_doc.company = frappe.db.get_value("Supplier", source_doc.supplier, "default_company") or frappe.defaults.get_global_default("company")
+	
+	# Get company from first PO item or global default
+	company = None
+	if source_doc.shipment_items:
+		for item in source_doc.shipment_items:
+			if item.purchase_order:
+				company = frappe.db.get_value("Purchase Order", item.purchase_order, "company")
+				if company:
+					break
+					
+	target_doc.company = company or frappe.defaults.get_global_default("company")
 	target_doc.posting_date = frappe.utils.nowdate()
 	
 	for item in source_doc.shipment_items:
@@ -51,7 +61,6 @@ def make_purchase_receipt(docname):
 			pr_item.purchase_order = item.purchase_order
 			pr_item.purchase_order_item = item.purchase_order_item
 			
-			# Fetch more details from PO if possible
 			if item.purchase_order_item:
 				po_data = frappe.db.get_value("Purchase Order Item", item.purchase_order_item, ["uom", "stock_uom", "conversion_factor"], as_dict=1)
 				if po_data:
@@ -59,4 +68,5 @@ def make_purchase_receipt(docname):
 					pr_item.stock_uom = po_data.stock_uom
 					pr_item.conversion_factor = po_data.conversion_factor
 					
-	return target_doc
+	target_doc.insert()
+	return target_doc.name

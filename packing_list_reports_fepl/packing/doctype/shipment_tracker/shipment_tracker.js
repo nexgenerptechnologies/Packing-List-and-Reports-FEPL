@@ -51,8 +51,7 @@ frappe.ui.form.on('Shipment Tracker', {
 			},
 			callback: function(r) {
 				if (r.message) {
-					let doc = frappe.model.sync(r.message);
-					frappe.set_route("Form", doc[0].doctype, doc[0].name);
+					frappe.set_route("Form", "Purchase Receipt", r.message);
 				}
 			}
 		});
