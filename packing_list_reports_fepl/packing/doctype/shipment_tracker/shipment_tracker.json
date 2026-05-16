@@ -1,25 +1,29 @@
 {
  "actions": [],
- "autoname": "ALLOC-.YYYY.-.#####",
- "creation": "2024-05-15 00:00:00",
+ "autoname": "SHIP-.YYYY.-.#####",
+ "creation": "2024-05-16 00:00:00",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "shipment_tracker",
+  "supplier",
   "date",
-  "excel_file",
   "column_break_1",
-  "total_quota",
-  "allocation_section",
-  "items"
+  "etd",
+  "eta",
+  "excel_file",
+  "section_break_1",
+  "remarks",
+  "items_section",
+  "shipment_items"
  ],
  "fields": [
   {
-   "fieldname": "shipment_tracker",
+   "fieldname": "supplier",
    "fieldtype": "Link",
-   "label": "Shipment Tracker",
-   "options": "Shipment Tracker",
+   "in_list_view": 1,
+   "label": "Supplier",
+   "options": "Supplier",
    "reqd": 1
   },
   {
@@ -29,30 +33,43 @@
    "reqd": 1
   },
   {
-   "fieldname": "excel_file",
-   "fieldtype": "Attach",
-   "label": "Upload Planning Excel"
-  },
-  {
    "fieldname": "column_break_1",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "total_quota",
-   "fieldtype": "Float",
-   "label": "Total Quota Assigned",
-   "read_only": 1
+   "fieldname": "etd",
+   "fieldtype": "Date",
+   "label": "Expected Time of Dispatch (ETD)"
   },
   {
-   "fieldname": "allocation_section",
+   "fieldname": "eta",
+   "fieldtype": "Date",
+   "label": "Expected Time of Arrival (ETA)"
+  },
+  {
+   "fieldname": "excel_file",
+   "fieldtype": "Attach",
+   "label": "Upload Shipment Excel"
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "items_section",
    "fieldtype": "Section Break",
-   "label": "Bulk Item Distribution"
+   "label": "Shipment Items"
   },
   {
-   "fieldname": "items",
+   "fieldname": "shipment_items",
    "fieldtype": "Table",
-   "label": "Item Allocations",
-   "options": "Partner Allocation Detail",
+   "label": "Items",
+   "options": "Shipment Item",
    "reqd": 1
   }
  ],
@@ -61,7 +78,7 @@
  "modified": "2024-05-16 00:00:00",
  "modified_by": "Administrator",
  "module": "Packing",
- "name": "Item Allocation Sheet",
+ "name": "Shipment Tracker",
  "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [

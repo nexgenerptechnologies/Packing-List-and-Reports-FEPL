@@ -1,6 +1,6 @@
 import frappe
 from frappe.model.document import Document
-from frappe.utils import flt
+from frappe.utils import flt, _
 
 class SalesPartnerSubAllocation(Document):
 	def validate(self):
@@ -9,11 +9,23 @@ class SalesPartnerSubAllocation(Document):
 	def on_submit(self):
 		self.create_stock_reservations()
 
+	def before_cancel(self):
+		self.check_unreserve_permission()
+
 	def on_cancel(self):
 		self.cancel_stock_reservations()
 
+	def check_unreserve_permission(self):
+		# Only the owner Sales Partner or System Manager can cancel/unreserve
+		user_roles = frappe.get_roles()
+		if "System Manager" in user_roles or "Administrator" in user_roles:
+			return # Admin can always override
+			
+		if self.owner != frappe.session.user:
+			frappe.throw(_("You are not authorized to unreserve this stock. Only the person who reserved it or an Admin can do this."))
+
 	def validate_quotas(self):
-		# Validation logic to ensure SP doesn't allocate more than the TL gave them for each item
+		# Validation logic to ensure SP doesn't allocate more than the TL gave them
 		pass
 
 	def create_stock_reservations(self):

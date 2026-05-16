@@ -1,23 +1,31 @@
 {
  "actions": [],
- "autoname": "ALLOC-.YYYY.-.#####",
- "creation": "2024-05-15 00:00:00",
+ "autoname": "DEMAND-.YYYY.-.#####",
+ "creation": "2024-05-16 00:00:00",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "sales_partner",
   "shipment_tracker",
   "date",
   "excel_file",
-  "column_break_1",
-  "total_quota",
-  "allocation_section",
-  "items"
+  "section_break_1",
+  "demand_items"
  ],
  "fields": [
   {
+   "fieldname": "sales_partner",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Sales Partner",
+   "options": "Sales Partner",
+   "reqd": 1
+  },
+  {
    "fieldname": "shipment_tracker",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Shipment Tracker",
    "options": "Shipment Tracker",
    "reqd": 1
@@ -31,28 +39,18 @@
   {
    "fieldname": "excel_file",
    "fieldtype": "Attach",
-   "label": "Upload Planning Excel"
+   "label": "Upload Demand Excel"
   },
   {
-   "fieldname": "column_break_1",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "total_quota",
-   "fieldtype": "Float",
-   "label": "Total Quota Assigned",
-   "read_only": 1
-  },
-  {
-   "fieldname": "allocation_section",
+   "fieldname": "section_break_1",
    "fieldtype": "Section Break",
-   "label": "Bulk Item Distribution"
+   "label": "Demand Details"
   },
   {
-   "fieldname": "items",
+   "fieldname": "demand_items",
    "fieldtype": "Table",
-   "label": "Item Allocations",
-   "options": "Partner Allocation Detail",
+   "label": "Items",
+   "options": "Sales Partner Demand Item",
    "reqd": 1
   }
  ],
@@ -61,7 +59,7 @@
  "modified": "2024-05-16 00:00:00",
  "modified_by": "Administrator",
  "module": "Packing",
- "name": "Item Allocation Sheet",
+ "name": "Sales Partner Demand",
  "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
