@@ -1,6 +1,5 @@
 frappe.ui.form.on('Shipment Tracker', {
 	refresh: function(frm) {
-		// Show Fetch button even if not saved yet, as long as supplier and POs are there
 		if (frm.doc.docstatus === 0 && frm.doc.supplier && frm.doc.shipment_pos && frm.doc.shipment_pos.length > 0) {
 			frm.add_custom_button(__('Fetch Pending Orders'), function() {
 				frm.events.fetch_pending_items(frm);
@@ -25,9 +24,11 @@ frappe.ui.form.on('Shipment Tracker', {
 			args: { supplier: frm.doc.supplier, purchase_orders: pos },
 			callback: function(r) {
 				if (r.message && r.message.length > 0) {
-					if (!frm.doc.currency && r.message[0].currency) {
+					// Force Currency Override
+					if (r.message[0].currency) {
 						frm.set_value('currency', r.message[0].currency);
 					}
+					
 					frm.clear_table('shipment_items');
 					r.message.forEach(row => {
 						let child = frm.add_child('shipment_items');
