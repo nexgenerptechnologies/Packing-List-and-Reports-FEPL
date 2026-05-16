@@ -57,6 +57,12 @@
    "label": "Line Number"
   },
   {
+   "fieldname": "supplier_invoice",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Supplier Invoice #"
+  },
+  {
    "fieldname": "purchase_order",
    "fieldtype": "Link",
    "hidden": 1,

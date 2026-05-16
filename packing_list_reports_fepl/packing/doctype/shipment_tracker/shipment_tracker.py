@@ -4,7 +4,6 @@ from frappe.model.mapper import get_mapped_doc
 
 class ShipmentTracker(Document):
 	def before_submit(self):
-		# Only block if trying to SUBMIT without items
 		if not self.shipment_items or len(self.shipment_items) == 0:
 			frappe.throw("Please fetch or add items to the shipment before submitting.")
 
@@ -88,14 +87,52 @@ def create_purchase_invoices(docname):
 	if not source_doc.purchase_receipt:
 		frappe.throw("Please link a Purchase Receipt first.")
 		
+	# Group items from Shipment Items by supplier_invoice
+	invoice_groups = {}
+	for item in source_doc.shipment_items:
+		inv_no = item.supplier_invoice or "No Invoice Assigned"
+		if inv_no not in invoice_groups:
+			invoice_groups[inv_no] = []
+		invoice_groups[inv_no].append(item)
+		
 	created_invoices = []
-	for row in source_doc.shipment_invoices:
-		if not row.purchase_invoice:
-			from erpnext.stock.doctype.purchase_receipt.purchase_receipt import make_purchase_invoice
-			pi = make_purchase_invoice(source_doc.purchase_receipt)
-			pi.bill_no = row.bill_no
-			pi.bill_date = row.bill_date
+	from erpnext.stock.doctype.purchase_receipt.purchase_receipt import make_purchase_invoice
+	
+	for inv_no, items in invoice_groups.items():
+		if inv_no == "No Invoice Assigned":
+			continue
+			
+		# Create a PI for this group
+		pi = make_purchase_invoice(source_doc.purchase_receipt)
+		pi.bill_no = inv_no
+		# Find bill date from the invoices table if exists, else default
+		bill_date = frappe.utils.nowdate()
+		for row in source_doc.shipment_invoices:
+			if row.bill_no == inv_no:
+				bill_date = row.bill_date
+				break
+		pi.bill_date = bill_date
+		
+		# Now filter the PI items to ONLY those in this group
+		new_items = []
+		group_item_codes = [it.item_code for it in items]
+		# We use item_code and PO Item to be specific
+		group_po_items = [it.purchase_order_item for it in items]
+		
+		for pi_item in pi.get("items"):
+			if pi_item.item_code in group_item_codes and pi_item.purchase_order_item in group_po_items:
+				new_items.append(pi_item)
+				
+		pi.set("items", new_items)
+		
+		if pi.get("items"):
 			pi.insert()
-			row.db_set("purchase_invoice", pi.name)
 			created_invoices.append(pi.name)
+			
+			# Link back to the invoices table
+			for row in source_doc.shipment_invoices:
+				if row.bill_no == inv_no:
+					row.db_set("purchase_invoice", pi.name)
+					break
+					
 	return created_invoices
