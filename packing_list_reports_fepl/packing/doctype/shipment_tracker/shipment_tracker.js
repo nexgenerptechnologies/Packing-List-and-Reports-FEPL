@@ -17,8 +17,9 @@ frappe.ui.form.on('Shipment Tracker', {
 			}).addClass('btn-primary');
 		}
 		
-		// 3. Invoice Button: Only if Receipt IS linked
-		if (frm.doc.docstatus === 1 && frm.doc.purchase_receipt) {
+		// 3. Invoice Button: Only if Receipt IS linked and Invoices not fully created
+		let all_invoices_created = frm.doc.shipment_invoices && frm.doc.shipment_invoices.length > 0 && frm.doc.shipment_invoices.every(row => row.purchase_invoice);
+		if (frm.doc.docstatus === 1 && frm.doc.purchase_receipt && !all_invoices_created) {
 			frm.add_custom_button(__('Create Purchase Invoices'), function() {
 				frm.events.create_purchase_invoices(frm);
 			}).addClass('btn-primary');
@@ -70,7 +71,7 @@ frappe.ui.form.on('Shipment Tracker', {
 		});
 	},
 	create_purchase_invoices: function(frm) {
-		frappe.confirm(__('Split 900+ items into separate Purchase Invoices based on the "Supplier Invoice #" column?'), () => {
+		frappe.confirm(__('Are you sure you want to create Purchase Invoices?'), () => {
 			frappe.call({
 				method: "packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.create_purchase_invoices",
 				args: { docname: frm.doc.name },
