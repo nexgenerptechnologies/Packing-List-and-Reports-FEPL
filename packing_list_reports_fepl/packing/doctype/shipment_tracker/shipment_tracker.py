@@ -122,4 +122,11 @@ def create_purchase_invoices(docname):
 
 @frappe.whitelist()
 def has_purchase_invoices(purchase_receipt):
-	return frappe.db.exists("Purchase Invoice Item", {"purchase_receipt": purchase_receipt})
+	active_invoices = frappe.db.sql("""
+		SELECT 1 
+		FROM `tabPurchase Invoice Item` pii
+		JOIN `tabPurchase Invoice` pi ON pii.parent = pi.name
+		WHERE pii.purchase_receipt = %s AND pi.docstatus < 2
+		LIMIT 1
+	""", (purchase_receipt,))
+	return len(active_invoices) > 0
