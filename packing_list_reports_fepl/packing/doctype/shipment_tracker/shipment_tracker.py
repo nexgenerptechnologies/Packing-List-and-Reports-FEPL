@@ -149,3 +149,79 @@ def has_purchase_invoices(purchase_receipt):
 		LIMIT 1
 	""", (purchase_receipt,))
 	return len(active_invoices) > 0
+
+@frappe.whitelist()
+def fetch_from_excel(docname):
+	doc = frappe.get_doc("Shipment Tracker", docname)
+	if not doc.excel_file:
+		frappe.throw(_("Please attach an Excel file first."))
+		
+	import openpyxl
+	from frappe.utils import flt, getdate
+	import datetime
+	
+	try:
+		file_doc = frappe.get_doc("File", {"file_url": doc.excel_file})
+		wb = openpyxl.load_workbook(file_doc.get_full_path(), data_only=True)
+		sheet = wb.active
+		
+		header_row = next(sheet.iter_rows(min_row=1, max_row=1, values_only=True))
+		col_map = {}
+		expected = {
+			"item_code": ["Item Code", "item code"],
+			"item_name": ["Item Name", "item name"],
+			"description": ["Description", "description"],
+			"qty": ["Quantity", "Qty", "quantity"],
+			"rate": ["Rate", "rate"],
+			"line_number": ["Line Number", "Line #", "line number"],
+			"supplier_invoice": ["Purchase Invoice Number", "Supplier Invoice No.", "Invoice No", "Supplier Invoice No", "Supplier Invoice #", "supplier invoice no."],
+			"bill_date": ["Date", "Invoice Date", "Purchase Invoice Date", "invoice date"]
+		}
+		for idx, cell in enumerate(header_row):
+			if not cell: continue
+			clean = str(cell).strip().lower()
+			for key, aliases in expected.items():
+				if any(alias.lower() == clean for alias in aliases):
+					col_map[key] = idx
+		
+		if "item_code" not in col_map:
+			frappe.throw(_("Could not find 'Item Code' column in Excel file. Please check column headers."))
+			
+		doc.set("shipment_items", [])
+		
+		for row in sheet.iter_rows(min_row=2, values_only=True):
+			if not any(row): continue
+			
+			item_code = row[col_map.get("item_code")] if "item_code" in col_map else ""
+			if not item_code: continue
+			
+			child = doc.append("shipment_items", {})
+			child.item_code = str(item_code).strip()
+			if "item_name" in col_map: child.item_name = str(row[col_map["item_name"]] or "").strip()
+			if "description" in col_map: child.description = str(row[col_map["description"]] or "").strip()
+			if "qty" in col_map: child.qty = flt(row[col_map["qty"]])
+			if "rate" in col_map: child.rate = flt(row[col_map["rate"]])
+			
+			if "line_number" in col_map:
+				lv = row[col_map["line_number"]]
+				child.line_number = str(lv).strip() if lv else ""
+				
+			if "supplier_invoice" in col_map:
+				sv = row[col_map["supplier_invoice"]]
+				child.supplier_invoice = str(sv).strip() if sv else ""
+				
+			if "bill_date" in col_map:
+				raw_date = row[col_map["bill_date"]]
+				if isinstance(raw_date, (datetime.datetime, datetime.date)):
+					child.bill_date = raw_date.strftime("%Y-%m-%d")
+				elif isinstance(raw_date, str):
+					try:
+						child.bill_date = getdate(raw_date).strftime("%Y-%m-%d")
+					except:
+						pass
+						
+		doc.save()
+		return "Success"
+		
+	except Exception as e:
+		frappe.throw(f"Failed to parse Excel: {str(e)}")

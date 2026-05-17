@@ -8,6 +8,21 @@ frappe.ui.form.on('Shipment Tracker', {
 			}).addClass('btn-primary');
 		}
 		
+		if (frm.doc.docstatus === 0 && frm.doc.excel_file) {
+			frm.add_custom_button(__('Fetch from Excel'), function() {
+				frappe.call({
+					method: "packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.fetch_from_excel",
+					args: { docname: frm.doc.name },
+					callback: function(r) {
+						if (!r.exc) {
+							frappe.show_alert({message: __('Excel data loaded successfully.'), color: 'green'});
+							frm.reload_doc();
+						}
+					}
+				});
+			}).addClass('btn-primary');
+		}
+		
 		if (frm.doc.docstatus === 1 && !frm.doc.purchase_receipt) {
 			frm.add_custom_button(__('Create Purchase Receipt'), function() {
 				frm.events.make_purchase_receipt(frm);
