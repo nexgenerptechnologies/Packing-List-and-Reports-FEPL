@@ -54,7 +54,24 @@ def make_purchase_receipt(docname):
 	for item in source_doc.shipment_items:
 		if item.qty > 0:
 			if not item.purchase_order_item:
-				frappe.throw(_("Row {0}: Item {1} is not linked to any Purchase Order Item. Please Fetch Pending Orders again.").format(item.idx, item.item_code))
+				if not item.line_number:
+					frappe.throw(_("Row {0}: Item {1} is missing both Purchase Order Item and Line Number. Cannot auto-link.").format(item.idx, item.item_code))
+				
+				# Auto-link based on custom_line_number and supplier
+				po_items = frappe.db.sql("""
+					SELECT poi.name, poi.parent 
+					FROM `tabPurchase Order Item` poi
+					JOIN `tabPurchase Order` po ON poi.parent = po.name
+					WHERE poi.custom_line_number = %s AND poi.item_code = %s AND po.supplier = %s AND po.docstatus = 1
+				""", (item.line_number, item.item_code, source_doc.supplier), as_dict=1)
+				
+				if po_items:
+					item.purchase_order = po_items[0].parent
+					item.purchase_order_item = po_items[0].name
+					# Save the linkage back to the document so it persists
+					item.db_update()
+				else:
+					frappe.throw(_("Row {0}: Could not find a matching Purchase Order for Line Number '{1}' and Item '{2}'.").format(item.idx, item.line_number, item.item_code))
 			
 			po_item = frappe.get_doc("Purchase Order Item", item.purchase_order_item)
 			# Fallback if custom_line_number is missing in DB record
