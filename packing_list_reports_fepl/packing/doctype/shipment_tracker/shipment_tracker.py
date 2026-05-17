@@ -6,6 +6,43 @@ class ShipmentTracker(Document):
 	def before_submit(self):
 		if not self.shipment_items or len(self.shipment_items) == 0:
 			frappe.throw(_("Please fetch or add items to the shipment before submitting."))
+			
+		for item in self.shipment_items:
+			if item.qty > 0:
+				if not item.purchase_order_item:
+					if not item.line_number:
+						frappe.throw(_("Row {0}: Item {1} is missing both Purchase Order Item and Line Number. Cannot auto-link.").format(item.idx, item.item_code))
+					
+					# Auto-link based on custom_line_number and supplier
+					po_items = frappe.db.sql("""
+						SELECT poi.name, poi.parent 
+						FROM `tabPurchase Order Item` poi
+						JOIN `tabPurchase Order` po ON poi.parent = po.name
+						WHERE poi.custom_line_number = %s AND poi.item_code = %s AND po.supplier = %s AND po.docstatus = 1
+					""", (item.line_number, item.item_code, self.supplier), as_dict=1)
+					
+					if po_items:
+						item.purchase_order = po_items[0].parent
+						item.purchase_order_item = po_items[0].name
+					else:
+						frappe.throw(_("Row {0}: Could not find a matching Purchase Order for Line Number '{1}' and Item '{2}'.").format(item.idx, item.line_number, item.item_code))
+				
+				po_item = frappe.get_doc("Purchase Order Item", item.purchase_order_item)
+				po_line_number = po_item.get("custom_line_number") or str(po_item.idx)
+				
+				discrepancies = []
+				if item.item_code != po_item.item_code: discrepancies.append(_("Item Code mismatch (Expected: '{0}', Got: '{1}')").format(po_item.item_code, item.item_code))
+				if item.item_name and po_item.item_name and str(item.item_name).strip() != str(po_item.item_name).strip(): discrepancies.append(_("Item Name mismatch (Expected: '{0}', Got: '{1}')").format(po_item.item_name, item.item_name))
+				if item.description and po_item.description and str(item.description).strip() != str(po_item.description).strip(): discrepancies.append(_("Description mismatch (Expected: '{0}', Got: '{1}')").format(po_item.description, item.description))
+				if item.qty > (po_item.qty - po_item.received_qty): discrepancies.append(_("Quantity exceeds pending amount (Pending: {0}, Got: {1})").format(po_item.qty - po_item.received_qty, item.qty))
+				if abs(float(item.rate) - float(po_item.rate)) > 0.01: discrepancies.append(_("Rate mismatch (Expected: {0}, Got: {1})").format(po_item.rate, item.rate))
+				
+				if item.line_number and str(item.line_number).strip() != str(po_line_number).strip():
+					discrepancies.append(_("Line Number mismatch (Expected: '{0}', Got: '{1}')").format(po_line_number, item.line_number))
+				
+				if discrepancies:
+					frappe.throw(_("Row {0}: Validation Failed for Item {1}.\n{2}").format(item.idx, item.item_code, "\n".join(discrepancies)))
+
 
 @frappe.whitelist()
 def get_outstanding_po_items(supplier, purchase_orders):
@@ -53,43 +90,7 @@ def make_purchase_receipt(docname):
 	
 	for item in source_doc.shipment_items:
 		if item.qty > 0:
-			if not item.purchase_order_item:
-				if not item.line_number:
-					frappe.throw(_("Row {0}: Item {1} is missing both Purchase Order Item and Line Number. Cannot auto-link.").format(item.idx, item.item_code))
-				
-				# Auto-link based on custom_line_number and supplier
-				po_items = frappe.db.sql("""
-					SELECT poi.name, poi.parent 
-					FROM `tabPurchase Order Item` poi
-					JOIN `tabPurchase Order` po ON poi.parent = po.name
-					WHERE poi.custom_line_number = %s AND poi.item_code = %s AND po.supplier = %s AND po.docstatus = 1
-				""", (item.line_number, item.item_code, source_doc.supplier), as_dict=1)
-				
-				if po_items:
-					item.purchase_order = po_items[0].parent
-					item.purchase_order_item = po_items[0].name
-					# Save the linkage back to the document so it persists
-					item.db_update()
-				else:
-					frappe.throw(_("Row {0}: Could not find a matching Purchase Order for Line Number '{1}' and Item '{2}'.").format(item.idx, item.line_number, item.item_code))
-			
 			po_item = frappe.get_doc("Purchase Order Item", item.purchase_order_item)
-			# Fallback if custom_line_number is missing in DB record
-			po_line_number = po_item.get("custom_line_number") or str(po_item.idx)
-			
-			discrepancies = []
-			if item.item_code != po_item.item_code: discrepancies.append(_("Item Code mismatch (Expected: '{0}', Got: '{1}')").format(po_item.item_code, item.item_code))
-			if item.item_name and po_item.item_name and str(item.item_name).strip() != str(po_item.item_name).strip(): discrepancies.append(_("Item Name mismatch (Expected: '{0}', Got: '{1}')").format(po_item.item_name, item.item_name))
-			if item.description and po_item.description and str(item.description).strip() != str(po_item.description).strip(): discrepancies.append(_("Description mismatch (Expected: '{0}', Got: '{1}')").format(po_item.description, item.description))
-			if item.qty > (po_item.qty - po_item.received_qty): discrepancies.append(_("Quantity exceeds pending amount (Pending: {0}, Got: {1})").format(po_item.qty - po_item.received_qty, item.qty))
-			if abs(float(item.rate) - float(po_item.rate)) > 0.01: discrepancies.append(_("Rate mismatch (Expected: {0}, Got: {1})").format(po_item.rate, item.rate))
-			
-			# Only check line number if it's provided in the item
-			if item.line_number and str(item.line_number).strip() != str(po_line_number).strip():
-				discrepancies.append(_("Line Number mismatch (Expected: '{0}', Got: '{1}')").format(po_line_number, item.line_number))
-			
-			if discrepancies:
-				frappe.throw(_("Row {0}: Validation Failed for Item {1}.\n{2}").format(item.idx, item.item_code, "\n".join(discrepancies)))
 
 			pr_item = target_doc.append("items", {})
 			pr_item.item_code = item.item_code
