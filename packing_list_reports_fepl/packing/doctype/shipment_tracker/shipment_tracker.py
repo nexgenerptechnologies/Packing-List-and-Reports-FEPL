@@ -78,13 +78,15 @@ def make_purchase_receipt(docname):
 			po_line_number = po_item.get("custom_line_number") or str(po_item.idx)
 			
 			discrepancies = []
-			if item.item_code != po_item.item_code: discrepancies.append(_("Item Code mismatch (Expected: {0}, Got: {1})").format(po_item.item_code, item.item_code))
+			if item.item_code != po_item.item_code: discrepancies.append(_("Item Code mismatch (Expected: '{0}', Got: '{1}')").format(po_item.item_code, item.item_code))
+			if item.item_name and po_item.item_name and str(item.item_name).strip() != str(po_item.item_name).strip(): discrepancies.append(_("Item Name mismatch (Expected: '{0}', Got: '{1}')").format(po_item.item_name, item.item_name))
+			if item.description and po_item.description and str(item.description).strip() != str(po_item.description).strip(): discrepancies.append(_("Description mismatch (Expected: '{0}', Got: '{1}')").format(po_item.description, item.description))
 			if item.qty > (po_item.qty - po_item.received_qty): discrepancies.append(_("Quantity exceeds pending amount (Pending: {0}, Got: {1})").format(po_item.qty - po_item.received_qty, item.qty))
 			if abs(float(item.rate) - float(po_item.rate)) > 0.01: discrepancies.append(_("Rate mismatch (Expected: {0}, Got: {1})").format(po_item.rate, item.rate))
 			
 			# Only check line number if it's provided in the item
-			if item.line_number and str(item.line_number) != str(po_line_number):
-				discrepancies.append(_("Line Number mismatch (Expected: {0}, Got: {1})").format(po_line_number, item.line_number))
+			if item.line_number and str(item.line_number).strip() != str(po_line_number).strip():
+				discrepancies.append(_("Line Number mismatch (Expected: '{0}', Got: '{1}')").format(po_line_number, item.line_number))
 			
 			if discrepancies:
 				frappe.throw(_("Row {0}: Validation Failed for Item {1}.\n{2}").format(item.idx, item.item_code, "\n".join(discrepancies)))
