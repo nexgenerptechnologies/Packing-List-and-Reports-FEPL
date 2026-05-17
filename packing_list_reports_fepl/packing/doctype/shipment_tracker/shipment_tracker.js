@@ -77,7 +77,11 @@ frappe.ui.form.on('Shipment Tracker', {
 				args: { docname: frm.doc.name },
 				callback: function(r) {
 					if (r.message) {
-						frappe.msgprint(__('Created {0} Smart-Split Purchase Invoices.', [r.message.length]));
+						frappe.msgprint({
+							title: __('Success'),
+							indicator: 'green',
+							message: __('Created ') + r.message.length + __(' Purchase Invoices.')
+						});
 						frm.reload_doc();
 					}
 				}

@@ -33,6 +33,7 @@
    "options": "currency"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "purchase_invoice",
    "fieldtype": "Link",
    "in_list_view": 1,
