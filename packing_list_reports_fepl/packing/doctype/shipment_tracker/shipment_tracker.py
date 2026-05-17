@@ -7,6 +7,14 @@ class ShipmentTracker(Document):
 		if not self.shipment_items or len(self.shipment_items) == 0:
 			frappe.throw(_("Please fetch or add items to the shipment before submitting."))
 			
+		import re
+		from frappe.utils import strip_html
+		def normalize_text(text):
+			if not text: return ""
+			t = strip_html(str(text))
+			t = t.replace("\xa0", " ").replace("\r", "").replace("\n", " ")
+			return re.sub(r'\s+', ' ', t).strip()
+			
 		for item in self.shipment_items:
 			if item.qty > 0:
 				if not item.purchase_order_item:
@@ -31,13 +39,13 @@ class ShipmentTracker(Document):
 				po_line_number = po_item.get("custom_line_number") or str(po_item.idx)
 				
 				discrepancies = []
-				if item.item_code != po_item.item_code: discrepancies.append(_("Item Code mismatch (Expected: '{0}', Got: '{1}')").format(po_item.item_code, item.item_code))
-				if item.item_name and po_item.item_name and str(item.item_name).strip() != str(po_item.item_name).strip(): discrepancies.append(_("Item Name mismatch (Expected: '{0}', Got: '{1}')").format(po_item.item_name, item.item_name))
-				if item.description and po_item.description and str(item.description).strip() != str(po_item.description).strip(): discrepancies.append(_("Description mismatch (Expected: '{0}', Got: '{1}')").format(po_item.description, item.description))
+				if normalize_text(item.item_code) != normalize_text(po_item.item_code): discrepancies.append(_("Item Code mismatch (Expected: '{0}', Got: '{1}')").format(po_item.item_code, item.item_code))
+				if item.item_name and po_item.item_name and normalize_text(item.item_name) != normalize_text(po_item.item_name): discrepancies.append(_("Item Name mismatch (Expected: '{0}', Got: '{1}')").format(po_item.item_name, item.item_name))
+				if item.description and po_item.description and normalize_text(item.description) != normalize_text(po_item.description): discrepancies.append(_("Description mismatch (Expected: '{0}', Got: '{1}')").format(po_item.description, item.description))
 				if item.qty > (po_item.qty - po_item.received_qty): discrepancies.append(_("Quantity exceeds pending amount (Pending: {0}, Got: {1})").format(po_item.qty - po_item.received_qty, item.qty))
 				if abs(float(item.rate) - float(po_item.rate)) > 0.01: discrepancies.append(_("Rate mismatch (Expected: {0}, Got: {1})").format(po_item.rate, item.rate))
 				
-				if item.line_number and str(item.line_number).strip() != str(po_line_number).strip():
+				if item.line_number and normalize_text(item.line_number) != normalize_text(po_line_number):
 					discrepancies.append(_("Line Number mismatch (Expected: '{0}', Got: '{1}')").format(po_line_number, item.line_number))
 				
 				if discrepancies:
