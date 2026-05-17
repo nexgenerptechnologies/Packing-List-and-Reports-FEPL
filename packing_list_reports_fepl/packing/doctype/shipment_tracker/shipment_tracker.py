@@ -107,7 +107,7 @@ def create_purchase_invoices(docname):
 		pi.bill_date = items[0].bill_date or frappe.utils.nowdate()
 		
 		group_po_items = [it.purchase_order_item for it in items]
-		new_items = [pi_item for pi_item in pi.get("items") if pi_item.purchase_order_item in group_po_items]
+		new_items = [pi_item for pi_item in pi.get("items") if pi_item.po_detail in group_po_items]
 		pi.set("items", new_items)
 		
 		if pi.get("items"):

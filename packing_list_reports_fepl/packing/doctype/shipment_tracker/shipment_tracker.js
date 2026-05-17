@@ -19,7 +19,7 @@ frappe.ui.form.on('Shipment Tracker', {
 		
 		// 3. Invoice Button: Only if Receipt IS linked
 		if (frm.doc.docstatus === 1 && frm.doc.purchase_receipt) {
-			frm.add_custom_button(__('Create Purchase Invoices (Smart Split)'), function() {
+			frm.add_custom_button(__('Create Purchase Invoices'), function() {
 				frm.events.create_purchase_invoices(frm);
 			}).addClass('btn-primary');
 		}
