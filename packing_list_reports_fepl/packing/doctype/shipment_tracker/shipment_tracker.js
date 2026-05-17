@@ -78,9 +78,20 @@ frappe.ui.form.on('Shipment Tracker', {
 				method: "packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.create_purchase_invoices",
 				args: { docname: frm.doc.name },
 				callback: function(r) {
-					if (r.message) {
-						frappe.msgprint("Successfully created " + r.message.length + " Purchase Invoices.");
+					if (r.message && r.message.length > 0) {
+						let msg = r.message.join(", ") + " created successfully.";
+						frappe.msgprint({
+							title: __('Success'),
+							indicator: 'green',
+							message: msg
+						});
 						frm.reload_doc();
+					} else {
+						frappe.msgprint({
+							title: __('Notice'),
+							indicator: 'orange',
+							message: __('No Purchase Invoices were created. Please verify item mappings.')
+						});
 					}
 				}
 			});
