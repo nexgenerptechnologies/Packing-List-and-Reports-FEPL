@@ -119,3 +119,7 @@ def create_purchase_invoices(docname):
 					break
 					
 	return created_invoices
+
+@frappe.whitelist()
+def has_purchase_invoices(purchase_receipt):
+	return frappe.db.exists("Purchase Invoice Item", {"purchase_receipt": purchase_receipt})

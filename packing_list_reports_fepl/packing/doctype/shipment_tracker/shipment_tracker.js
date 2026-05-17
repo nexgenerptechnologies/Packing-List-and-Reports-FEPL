@@ -15,12 +15,15 @@ frappe.ui.form.on('Shipment Tracker', {
 		}
 		
 		if (frm.doc.docstatus === 1 && frm.doc.purchase_receipt) {
-			// Check if any Purchase Invoice exists for this Receipt (even in draft)
-			frappe.db.get_value("Purchase Invoice Item", {"purchase_receipt": frm.doc.purchase_receipt}, "parent", (r) => {
-				if (!r || !r.message || !r.message.parent) {
-					frm.add_custom_button(__('Create Purchase Invoices'), function() {
-						frm.events.create_purchase_invoices(frm);
-					}).addClass('btn-primary');
+			frappe.call({
+				method: "packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.has_purchase_invoices",
+				args: { purchase_receipt: frm.doc.purchase_receipt },
+				callback: function(r) {
+					if (!r.message) {
+						frm.add_custom_button(__('Create Purchase Invoices'), function() {
+							frm.events.create_purchase_invoices(frm);
+						}).addClass('btn-primary');
+					}
 				}
 			});
 		}
