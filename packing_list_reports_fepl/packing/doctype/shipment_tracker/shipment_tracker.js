@@ -1,6 +1,10 @@
 frappe.ui.form.on('Shipment Tracker', {
 	refresh: function(frm) {
 		frm.clear_custom_buttons();
+		
+		frm.add_custom_button(__('Download Template'), function() {
+			window.open('/api/method/packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.download_template');
+		});
 
 		if (frm.doc.docstatus === 0 && frm.doc.supplier && frm.doc.shipment_pos && frm.doc.shipment_pos.length > 0) {
 			frm.add_custom_button(__('Fetch Pending Orders'), function() {

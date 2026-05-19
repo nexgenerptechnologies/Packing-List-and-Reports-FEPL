@@ -1,0 +1,38 @@
+{
+ "actions": [],
+ "creation": "2024-05-19 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "enable_item_allocation_sheet"
+ ],
+ "fields": [
+  {
+   "default": "1",
+   "fieldname": "enable_item_allocation_sheet",
+   "fieldtype": "Check",
+   "label": "Enable Item Allocation Sheet"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "modified": "2024-05-19 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Packing",
+ "name": "Packing List Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

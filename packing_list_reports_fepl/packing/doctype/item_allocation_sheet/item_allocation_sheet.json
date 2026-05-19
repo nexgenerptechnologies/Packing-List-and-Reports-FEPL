@@ -6,47 +6,33 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "shipment_tracker",
   "date",
-  "excel_file",
-  "column_break_1",
-  "total_quota",
-  "allocation_section",
+  "status",
+  "shipments",
   "items"
  ],
  "fields": [
   {
-   "fieldname": "shipment_tracker",
-   "fieldtype": "Link",
-   "label": "Shipment Tracker",
-   "options": "Shipment Tracker",
-   "reqd": 1
-  },
-  {
    "fieldname": "date",
    "fieldtype": "Date",
    "label": "Date",
+   "reqd": 1,
+   "default": "Today"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nPending Team Leader\nApproved",
+   "default": "Draft",
    "reqd": 1
   },
   {
-   "fieldname": "excel_file",
-   "fieldtype": "Attach",
-   "label": "Upload Planning Excel"
-  },
-  {
-   "fieldname": "column_break_1",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "total_quota",
-   "fieldtype": "Float",
-   "label": "Total Quota Assigned",
-   "read_only": 1
-  },
-  {
-   "fieldname": "allocation_section",
-   "fieldtype": "Section Break",
-   "label": "Bulk Item Distribution"
+   "fieldname": "shipments",
+   "fieldtype": "Table",
+   "label": "Select Shipments",
+   "options": "Item Allocation Shipment",
+   "reqd": 1
   },
   {
    "fieldname": "items",
@@ -57,8 +43,8 @@
   }
  ],
  "index_web_pages_for_search": 1,
- "is_submittable": 1,
- "modified": "2024-05-16 00:00:00",
+ "is_submittable": 0,
+ "modified": "2024-05-19 00:00:00",
  "modified_by": "Administrator",
  "module": "Packing",
  "name": "Item Allocation Sheet",
@@ -66,18 +52,33 @@
  "owner": "Administrator",
  "permissions": [
   {
-   "amend": 1,
-   "cancel": 1,
    "create": 1,
-   "delete": 1,
    "email": 1,
-   "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
    "role": "System Manager",
    "share": 1,
-   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales Partner",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales Manager",
+   "share": 1,
    "write": 1
   }
  ],

@@ -5,21 +5,32 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "shipment",
   "item_code",
   "item_name",
   "description",
   "total_qty",
-  "requested_qty",
-  "sales_partner",
+  "customer",
+  "sales_order",
+  "partner_allocation_qty",
   "allocated_qty"
  ],
  "fields": [
+  {
+   "fieldname": "shipment",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Shipment",
+   "options": "Shipment Tracker",
+   "read_only": 1
+  },
   {
    "fieldname": "item_code",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Item Code",
-   "options": "Item"
+   "options": "Item",
+   "read_only": 1
   },
   {
    "fieldname": "item_name",
@@ -38,35 +49,39 @@
    "fieldname": "total_qty",
    "fieldtype": "Float",
    "in_list_view": 1,
-   "label": "Total Qty",
+   "label": "Shipment Qty",
    "read_only": 1
   },
   {
-   "fieldname": "requested_qty",
-   "fieldtype": "Float",
-   "in_list_view": 1,
-   "label": "Requested Qty",
-   "read_only": 1
-  },
-  {
-   "fieldname": "sales_partner",
+   "fieldname": "customer",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Sales Partner",
-   "options": "Sales Partner",
-   "reqd": 1
+   "label": "Customer",
+   "options": "Customer"
+  },
+  {
+   "fieldname": "sales_order",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Sales Order",
+   "options": "Sales Order"
+  },
+  {
+   "fieldname": "partner_allocation_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Partner Allocation Qty"
   },
   {
    "fieldname": "allocated_qty",
    "fieldtype": "Float",
    "in_list_view": 1,
-   "label": "Allocated Qty",
-   "reqd": 1
+   "label": "Team Leader Allocated Qty"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
- "modified": "2024-05-16 00:00:00",
+ "modified": "2024-05-19 00:00:00",
  "modified_by": "Administrator",
  "module": "Packing",
  "name": "Partner Allocation Detail",

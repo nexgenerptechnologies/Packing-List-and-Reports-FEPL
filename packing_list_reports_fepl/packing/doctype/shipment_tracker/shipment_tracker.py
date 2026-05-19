@@ -53,6 +53,33 @@ class ShipmentTracker(Document):
 
 
 @frappe.whitelist()
+def download_template():
+	import openpyxl
+	from io import BytesIO
+	
+	wb = openpyxl.Workbook()
+	ws = wb.active
+	ws.title = "Shipment Import Template"
+	
+	headers = [
+		"Item Code", "Item Name", "Description", "Quantity", 
+		"Rate", "Line Number", "Supplier Invoice #", "Invoice Date"
+	]
+	ws.append(headers)
+	
+	from openpyxl.styles import Font
+	for cell in ws[1]:
+		cell.font = Font(bold=True)
+		
+	output = BytesIO()
+	wb.save(output)
+	output.seek(0)
+	
+	frappe.response['filename'] = "Shipment_Template.xlsx"
+	frappe.response['filecontent'] = output.getvalue()
+	frappe.response['type'] = 'binary'
+
+@frappe.whitelist()
 def get_outstanding_po_items(supplier, purchase_orders):
 	if isinstance(purchase_orders, str):
 		import json
