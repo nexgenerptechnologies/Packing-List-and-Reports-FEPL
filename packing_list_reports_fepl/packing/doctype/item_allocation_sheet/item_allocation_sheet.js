@@ -60,7 +60,7 @@ frappe.ui.form.on('Item Allocation Sheet', {
 		}
 		
 		// 1. Download Template Buttons
-		if (frm.doc.status === 'Draft') {
+		if (frm.doc.status === 'Draft' && frm.doc.sales_partner) {
 			frm.add_custom_button(__('Download Partner Template'), function() {
 				let url = '/api/method/packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.download_partner_template';
 				if (!frm.is_new()) {
@@ -68,18 +68,18 @@ frappe.ui.form.on('Item Allocation Sheet', {
 				}
 				window.open(url);
 			});
-		} else if (frm.doc.status === 'Pending Team Leader') {
+		} else if (frm.doc.status === 'Pending Team Leader' && frm.doc.sales_partner) {
 			frm.add_custom_button(__('Download Team Lead Template'), function() {
 				window.open('/api/method/packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.download_team_leader_template?docname=' + frm.doc.name);
 			});
-		} else if (frm.doc.status === 'Pending Partner Finalization') {
+		} else if (frm.doc.status === 'Pending Partner Finalization' && frm.doc.sales_partner) {
 			frm.add_custom_button(__('Download Finalization Template'), function() {
 				window.open('/api/method/packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.download_partner_finalization_template?docname=' + frm.doc.name);
 			});
 		}
 
-		// 2. Upload Excel Action
-		if (frm.doc.excel_file && frm.doc.docstatus === 0) {
+		// 2. Upload Excel Action (Only for individual Sales Partner/TL sheets)
+		if (frm.doc.excel_file && frm.doc.docstatus === 0 && frm.doc.sales_partner) {
 			frm.add_custom_button(__('Upload Excel Data'), function() {
 				frm.save().then(() => {
 					frappe.call({
@@ -97,7 +97,7 @@ frappe.ui.form.on('Item Allocation Sheet', {
 		}
 
 		// 3. Workflow Action Buttons
-		if (frm.doc.status === 'Draft' && frm.doc.docstatus === 0) {
+		if (frm.doc.status === 'Draft' && frm.doc.docstatus === 0 && frm.doc.sales_partner) {
 			frm.add_custom_button(__('Send to Team Leader'), function() {
 				frm.set_value('status', 'Pending Team Leader');
 				frm.save().then(() => {
