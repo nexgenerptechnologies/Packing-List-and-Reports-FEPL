@@ -12,7 +12,9 @@
   "total_qty",
   "customer",
   "sales_order",
-  "partner_allocation_qty",
+  "allocation_request",
+  "total_allocation_request",
+  "sales_partner",
   "allocated_qty"
  ],
  "fields": [
@@ -56,7 +58,7 @@
    "fieldname": "customer",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Customer",
+   "label": "Customer Name",
    "options": "Customer"
   },
   {
@@ -67,16 +69,31 @@
    "options": "Sales Order"
   },
   {
-   "fieldname": "partner_allocation_qty",
+   "fieldname": "allocation_request",
    "fieldtype": "Float",
    "in_list_view": 1,
-   "label": "Partner Allocation Qty"
+   "label": "Allocation Request"
+  },
+  {
+   "fieldname": "total_allocation_request",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Total Allocation Request",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sales_partner",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Partner Name",
+   "options": "Sales Partner",
+   "read_only": 1
   },
   {
    "fieldname": "allocated_qty",
    "fieldtype": "Float",
    "in_list_view": 1,
-   "label": "Team Leader Allocated Qty"
+   "label": "Allocated Qty"
   }
  ],
  "index_web_pages_for_search": 1,

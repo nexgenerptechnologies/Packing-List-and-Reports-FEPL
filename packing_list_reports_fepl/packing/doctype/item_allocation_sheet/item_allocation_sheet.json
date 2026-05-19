@@ -8,6 +8,8 @@
  "field_order": [
   "date",
   "status",
+  "sales_partner",
+  "excel_file",
   "shipments",
   "items"
  ],
@@ -25,7 +27,20 @@
    "label": "Status",
    "options": "Draft\nPending Team Leader\nApproved",
    "default": "Draft",
-   "reqd": 1
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "sales_partner",
+   "fieldtype": "Link",
+   "label": "Sales Partner",
+   "options": "Sales Partner",
+   "read_only": 1
+  },
+  {
+   "fieldname": "excel_file",
+   "fieldtype": "Attach",
+   "label": "Upload Allocation Excel"
   },
   {
    "fieldname": "shipments",

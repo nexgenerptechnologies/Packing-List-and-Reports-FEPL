@@ -1,6 +1,164 @@
 import frappe
 from frappe.model.document import Document
+from frappe import _
 
 class ItemAllocationSheet(Document):
-	def validate(self):
-		pass
+	def before_save(self):
+		# Re-map sales partner based on user if not already set
+		if not self.sales_partner:
+			sp_name = frappe.db.get_value("Sales Partner", {"user": frappe.session.user}, "name")
+			if sp_name:
+				self.sales_partner = sp_name
+				
+		# Calculate total allocation request per item code
+		item_totals = {}
+		for item in self.items:
+			if self.sales_partner:
+				item.sales_partner = self.sales_partner
+			item_totals[item.item_code] = item_totals.get(item.item_code, 0) + (item.allocation_request or 0)
+			
+		for item in self.items:
+			item.total_allocation_request = item_totals[item.item_code]
+
+@frappe.whitelist()
+def upload_excel_data(docname):
+	doc = frappe.get_doc("Item Allocation Sheet", docname)
+	if not doc.excel_file:
+		frappe.throw(_("Please attach an Excel file first."))
+		
+	import openpyxl
+	from frappe.utils import flt
+	
+	try:
+		file_doc = frappe.get_doc("File", {"file_url": doc.excel_file})
+		wb = openpyxl.load_workbook(file_doc.get_full_path(), data_only=True)
+		sheet = wb.active
+		
+		header_row = next(sheet.iter_rows(min_row=1, max_row=1, values_only=True))
+		col_map = {}
+		expected = {
+			"item_code": ["Item Code", "item code"],
+			"item_name": ["Item Name", "item name"],
+			"description": ["Description", "description"],
+			"total_qty": ["Shipment Qty", "Shipment Quantity", "Qty"],
+			"customer": ["Customer Name", "Customer", "customer"],
+			"sales_order": ["Sales Order", "sales order"],
+			"allocation_request": ["Allocation Request", "Allocation Requested", "Allocation Request Qty"],
+			"allocated_qty": ["Allocated Qty", "Allocated Quantity"],
+			"sales_partner": ["Partner Name", "Sales Partner"]
+		}
+		
+		for idx, cell in enumerate(header_row):
+			if not cell: continue
+			clean = str(cell).strip().lower()
+			for key, aliases in expected.items():
+				if any(alias.lower() == clean for alias in aliases):
+					col_map[key] = idx
+					
+		if "item_code" not in col_map:
+			frappe.throw(_("Could not find 'Item Code' column in Excel file."))
+			
+		# If status is Draft (Sales Partner upload)
+		if doc.status == "Draft":
+			doc.set("items", [])
+			for row in sheet.iter_rows(min_row=2, values_only=True):
+				if not any(row): continue
+				item_code = row[col_map.get("item_code")] if "item_code" in col_map else ""
+				if not item_code: continue
+				
+				child = doc.append("items", {})
+				child.item_code = str(item_code).strip()
+				if "item_name" in col_map: child.item_name = str(row[col_map["item_name"]] or "").strip()
+				if "description" in col_map: child.description = str(row[col_map["description"]] or "").strip()
+				if "total_qty" in col_map: child.total_qty = flt(row[col_map["total_qty"]])
+				if "customer" in col_map: child.customer = str(row[col_map["customer"]] or "").strip()
+				if "sales_order" in col_map: child.sales_order = str(row[col_map["sales_order"]] or "").strip()
+				if "allocation_request" in col_map: child.allocation_request = flt(row[col_map["allocation_request"]])
+				
+		# If status is Pending Team Leader (Team Leader upload)
+		elif doc.status == "Pending Team Leader":
+			for row in sheet.iter_rows(min_row=2, values_only=True):
+				if not any(row): continue
+				item_code = str(row[col_map.get("item_code")] or "").strip()
+				if not item_code: continue
+				
+				customer = str(row[col_map.get("customer")] or "").strip() if "customer" in col_map else ""
+				sales_order = str(row[col_map.get("sales_order")] or "").strip() if "sales_order" in col_map else ""
+				allocated_qty = flt(row[col_map["allocated_qty"]]) if "allocated_qty" in col_map else 0.0
+				
+				for child in doc.items:
+					match = (child.item_code == item_code)
+					if customer:
+						match = match and (str(child.customer).strip() == customer)
+					if sales_order:
+						match = match and (str(child.sales_order).strip() == sales_order)
+						
+					if match:
+						child.allocated_qty = allocated_qty
+						
+		doc.save()
+		return "Success"
+	except Exception as e:
+		frappe.throw(f"Failed to parse Excel: {str(e)}")
+
+@frappe.whitelist()
+def download_partner_template():
+	import openpyxl
+	from io import BytesIO
+	
+	wb = openpyxl.Workbook()
+	ws = wb.active
+	ws.title = "Partner Allocation Template"
+	
+	headers = [
+		"Item Code", "Item Name", "Description", "Shipment Qty", 
+		"Customer Name", "Sales Order", "Allocation Request", "Total Allocation Request"
+	]
+	ws.append(headers)
+	
+	from openpyxl.styles import Font
+	for cell in ws[1]:
+		cell.font = Font(bold=True)
+		
+	output = BytesIO()
+	wb.save(output)
+	output.seek(0)
+	
+	frappe.response['filename'] = "Sales_Partner_Allocation_Template.xlsx"
+	frappe.response['filecontent'] = output.getvalue()
+	frappe.response['type'] = 'binary'
+
+@frappe.whitelist()
+def download_team_leader_template(docname=None):
+	import openpyxl
+	from io import BytesIO
+	
+	wb = openpyxl.Workbook()
+	ws = wb.active
+	ws.title = "Team Lead Allocation Template"
+	
+	headers = [
+		"Item Code", "Item Name", "Description", "Customer Name", 
+		"Allocation Request", "Partner Name", "Allocated Qty"
+	]
+	ws.append(headers)
+	
+	if docname:
+		doc = frappe.get_doc("Item Allocation Sheet", docname)
+		for item in doc.items:
+			ws.append([
+				item.item_code, item.item_name, item.description, item.customer,
+				item.allocation_request, item.sales_partner, item.allocated_qty or ""
+			])
+			
+	from openpyxl.styles import Font
+	for cell in ws[1]:
+		cell.font = Font(bold=True)
+		
+	output = BytesIO()
+	wb.save(output)
+	output.seek(0)
+	
+	frappe.response['filename'] = "Team_Leader_Allocation_Template.xlsx"
+	frappe.response['filecontent'] = output.getvalue()
+	frappe.response['type'] = 'binary'
