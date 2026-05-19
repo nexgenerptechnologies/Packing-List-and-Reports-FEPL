@@ -200,6 +200,45 @@ frappe.ui.form.on('Item Allocation Shipment', {
 });
 
 frappe.ui.form.on('Partner Allocation Detail', {
+	split_row: function(frm, cdt, cdn) {
+		let row = frappe.get_doc(cdt, cdn);
+		if (frm.doc.status !== 'Draft' && frm.doc.status !== 'Pending Partner Finalization') {
+			frappe.msgprint(__('You can only split allocation rows in Draft or Partner Finalization stages.'));
+			return;
+		}
+		
+		frappe.prompt([
+			{
+				label: __('Number of splits'),
+				fieldname: 'splits',
+				fieldtype: 'Int',
+				default: 1,
+				reqd: 1
+			}
+		], function(values){
+			let num = values.splits;
+			if (num > 0) {
+				for (let i = 0; i < num; i++) {
+					let new_row = frm.add_child('items');
+					new_row.shipment = row.shipment;
+					new_row.item_code = row.item_code;
+					new_row.item_name = row.item_name;
+					new_row.description = row.description;
+					new_row.total_qty = row.total_qty;
+					new_row.sales_partner = row.sales_partner;
+					new_row.allocated_qty = row.allocated_qty; // Copy TL quota if any
+					
+					// Keep split rows empty for custom customer allocation
+					new_row.customer = '';
+					new_row.sales_order = '';
+					new_row.allocation_request = 0;
+					new_row.final_allocation = 0;
+				}
+				frm.refresh_field('items');
+				frappe.show_alert({message: __('{0} split rows added successfully.', [num]), color: 'green'});
+			}
+		}, __('Split Row'), __('Split'));
+	},
 	item_code: function(frm, cdt, cdn) {
 		let row = frappe.get_doc(cdt, cdn);
 		if (row.item_code) {

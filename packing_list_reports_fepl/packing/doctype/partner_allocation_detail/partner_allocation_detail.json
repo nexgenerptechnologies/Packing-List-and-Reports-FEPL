@@ -9,6 +9,7 @@
   "item_code",
   "item_name",
   "description",
+  "split_row",
   "total_qty",
   "customer",
   "sales_order",
@@ -47,6 +48,12 @@
    "fieldtype": "Small Text",
    "label": "Description",
    "read_only": 1
+  },
+  {
+   "fieldname": "split_row",
+   "fieldtype": "Button",
+   "in_list_view": 1,
+   "label": "Split"
   },
   {
    "fieldname": "total_qty",
