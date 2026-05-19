@@ -195,7 +195,7 @@ def upload_excel_data(docname):
 		frappe.throw(f"Failed to parse Excel: {str(e)}")
 
 @frappe.whitelist()
-def download_partner_template():
+def download_partner_template(docname=None):
 	import openpyxl
 	from io import BytesIO
 	
@@ -209,6 +209,14 @@ def download_partner_template():
 	]
 	ws.append(headers)
 	
+	if docname:
+		doc = frappe.get_doc("Item Allocation Sheet", docname)
+		for item in doc.items:
+			ws.append([
+				item.item_code, item.item_name, item.description, item.total_qty,
+				item.customer or "", item.sales_order or "", item.allocation_request or "", item.total_allocation_request or ""
+			])
+			
 	from openpyxl.styles import Font
 	for cell in ws[1]:
 		cell.font = Font(bold=True)

@@ -53,7 +53,7 @@ frappe.ui.form.on('Item Allocation Sheet', {
 		// 1. Download Template Buttons
 		if (frm.doc.status === 'Draft') {
 			frm.add_custom_button(__('Download Partner Template'), function() {
-				window.open('/api/method/packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.download_partner_template');
+				window.open('/api/method/packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.download_partner_template?docname=' + frm.doc.name);
 			});
 		} else if (frm.doc.status === 'Pending Team Leader') {
 			frm.add_custom_button(__('Download Team Lead Template'), function() {
