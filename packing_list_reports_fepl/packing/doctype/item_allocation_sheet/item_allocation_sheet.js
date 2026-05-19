@@ -60,7 +60,7 @@ frappe.ui.form.on('Item Allocation Sheet', {
 		}
 		
 		// 1. Download Template Buttons
-		if (frm.doc.status === 'Draft' && frm.doc.sales_partner) {
+		if (frm.doc.status === 'Draft') {
 			frm.add_custom_button(__('Download Partner Template'), function() {
 				let url = '/api/method/packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.download_partner_template';
 				if (!frm.is_new()) {
@@ -68,18 +68,18 @@ frappe.ui.form.on('Item Allocation Sheet', {
 				}
 				window.open(url);
 			});
-		} else if (frm.doc.status === 'Pending Team Leader' && frm.doc.sales_partner) {
+		} else if (frm.doc.status === 'Pending Team Leader') {
 			frm.add_custom_button(__('Download Team Lead Template'), function() {
 				window.open('/api/method/packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.download_team_leader_template?docname=' + frm.doc.name);
 			});
-		} else if (frm.doc.status === 'Pending Partner Finalization' && frm.doc.sales_partner) {
+		} else if (frm.doc.status === 'Pending Partner Finalization') {
 			frm.add_custom_button(__('Download Finalization Template'), function() {
 				window.open('/api/method/packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.download_partner_finalization_template?docname=' + frm.doc.name);
 			});
 		}
 
-		// 2. Upload Excel Action (Only for individual Sales Partner/TL sheets)
-		if (frm.doc.excel_file && frm.doc.docstatus === 0 && frm.doc.sales_partner) {
+		// 2. Upload Excel Action
+		if (frm.doc.excel_file && frm.doc.docstatus === 0) {
 			frm.add_custom_button(__('Upload Excel Data'), function() {
 				frm.save().then(() => {
 					frappe.call({
@@ -97,7 +97,7 @@ frappe.ui.form.on('Item Allocation Sheet', {
 		}
 
 		// 3. Workflow Action Buttons
-		if (frm.doc.status === 'Draft' && frm.doc.docstatus === 0 && frm.doc.sales_partner) {
+		if (frm.doc.status === 'Draft' && frm.doc.docstatus === 0) {
 			frm.add_custom_button(__('Send to Team Leader'), function() {
 				frm.set_value('status', 'Pending Team Leader');
 				frm.save().then(() => {
@@ -126,45 +126,6 @@ frappe.ui.form.on('Item Allocation Sheet', {
 			}).addClass('btn-danger');
 		}
 
-		// 3.5 Team Leader Combined Sheet workflow triggers
-		if (is_tl && !frm.doc.sales_partner && frm.doc.docstatus === 0) {
-			if (frm.doc.status === 'Draft') {
-				frm.add_custom_button(__('Fetch Partner Requests'), function() {
-					frm.save().then(() => {
-						frappe.call({
-							method: 'packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.fetch_partner_requests',
-							args: { docname: frm.doc.name },
-							callback: function(r) {
-								if (!r.exc) {
-									frappe.show_alert({message: __(r.message), color: 'green'});
-									frm.reload_doc();
-								}
-							}
-						});
-					});
-				}).addClass('btn-primary');
-
-				if (frm.doc.items && frm.doc.items.length > 0) {
-					frm.add_custom_button(__('Approve & Distribute Quotas'), function() {
-						frappe.confirm(__('Are you sure you want to approve and distribute these quotas to all Sales Partners? This will update their individual sheets and transition them to Partner Finalization stage.'), function() {
-							frm.save().then(() => {
-								frappe.call({
-									method: 'packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.distribute_tl_quotas',
-									args: { docname: frm.doc.name },
-									callback: function(r) {
-										if (!r.exc) {
-											frappe.msgprint(__('Quotas successfully approved and distributed to all Sales Partners.'));
-											frm.reload_doc();
-										}
-									}
-								});
-							});
-						});
-					}).addClass('btn-success');
-				}
-			}
-		}
-
 		// 4. Role and Status Read Only Enforcements
 		if (frm.doc.status !== 'Draft') {
 			frm.set_df_property('shipments', 'read_only', 1);
@@ -173,14 +134,6 @@ frappe.ui.form.on('Item Allocation Sheet', {
 		}
 		
 		let items_grid = frm.fields_dict['items'].grid;
-		
-		// Hide or show the Partner Name column inside the items grid depending on whether a TL is viewing the page
-		if (is_tl) {
-			items_grid.update_docfield_property('sales_partner', 'in_list_view', 1);
-		} else {
-			items_grid.update_docfield_property('sales_partner', 'in_list_view', 0);
-		}
-		items_grid.refresh();
 		
 		if (frm.doc.docstatus === 1) { // Submitted/Approved
 			items_grid.update_docfield_property('item_code', 'read_only', 1);

@@ -1,7 +1,7 @@
 {
  "actions": [],
- "autoname": "ALLOC-.YYYY.-.#####",
- "creation": "2024-05-15 00:00:00",
+ "autoname": "TL-ALLOC-.YYYY.-.#####",
+ "creation": "2026-05-19 18:15:00",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
@@ -10,7 +10,6 @@
   "date",
   "status",
   "column_break_1",
-  "sales_partner",
   "excel_file",
   "section_break_2",
   "shipments",
@@ -32,7 +31,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Draft\nPending Team Leader\nPending Partner Finalization\nApproved",
+   "options": "Draft\nApproved",
    "default": "Draft",
    "reqd": 1,
    "read_only": 1
@@ -42,21 +41,14 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "sales_partner",
-   "fieldtype": "Link",
-   "label": "Sales Partner",
-   "options": "Sales Partner",
-   "read_only": 1
-  },
-  {
    "fieldname": "excel_file",
    "fieldtype": "Attach",
-   "label": "Upload Allocation Excel"
+   "label": "Upload Team Lead Excel"
   },
   {
    "fieldname": "section_break_2",
    "fieldtype": "Section Break",
-   "label": "Shipments & Item Allocations"
+   "label": "Consolidate Shipments"
   },
   {
    "fieldname": "shipments",
@@ -68,23 +60,23 @@
   {
    "fieldname": "items",
    "fieldtype": "Table",
-   "label": "Item Allocations",
-   "options": "Partner Allocation Detail",
+   "label": "Consolidated Partner Requests",
+   "options": "Team Leader Allocation Detail",
    "reqd": 1
   }
  ],
  "index_web_pages_for_search": 1,
- "is_submittable": 1,
- "modified": "2024-05-19 00:00:00",
+ "is_submittable": 0,
+ "modified": "2026-05-19 18:15:00",
  "modified_by": "Administrator",
  "module": "Packing",
- "name": "Item Allocation Sheet",
+ "name": "Team Leader Allocation Sheet",
  "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
    "amend": 0,
-   "cancel": 1,
+   "cancel": 0,
    "create": 1,
    "delete": 1,
    "email": 1,
@@ -94,27 +86,11 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
-   "submit": 1,
    "write": 1
   },
   {
    "amend": 0,
-   "cancel": 1,
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Sales Partner",
-   "share": 1,
-   "submit": 1,
-   "write": 1
-  },
-  {
-   "amend": 0,
-   "cancel": 1,
+   "cancel": 0,
    "create": 1,
    "delete": 1,
    "email": 1,
@@ -124,7 +100,6 @@
    "report": 1,
    "role": "Sales Manager",
    "share": 1,
-   "submit": 1,
    "write": 1
   }
  ],

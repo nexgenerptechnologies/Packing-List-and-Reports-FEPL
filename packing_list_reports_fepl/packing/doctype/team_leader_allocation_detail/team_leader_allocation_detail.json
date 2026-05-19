@@ -1,0 +1,103 @@
+{
+ "actions": [],
+ "creation": "2026-05-19 18:10:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "shipment",
+  "item_code",
+  "item_name",
+  "description",
+  "total_qty",
+  "sales_partner",
+  "allocation_request",
+  "allocated_qty",
+  "source_doc",
+  "source_row"
+ ],
+ "fields": [
+  {
+   "fieldname": "shipment",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Shipment",
+   "options": "Shipment Tracker",
+   "read_only": 1
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item Code",
+   "options": "Item",
+   "read_only": 1
+  },
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Item Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Shipment Qty",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sales_partner",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Sales Partner",
+   "options": "Sales Partner",
+   "read_only": 1
+  },
+  {
+   "fieldname": "allocation_request",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Allocation Request",
+   "read_only": 1
+  },
+  {
+   "fieldname": "allocated_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "TL Quota"
+  },
+  {
+   "fieldname": "source_doc",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Source Doc",
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_row",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Source Row",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "modified": "2026-05-19 18:10:00",
+ "modified_by": "Administrator",
+ "module": "Packing",
+ "name": "Team Leader Allocation Detail",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
