@@ -92,7 +92,6 @@
   {
    "fieldname": "sales_partner",
    "fieldtype": "Link",
-   "in_list_view": 1,
    "label": "Partner Name",
    "options": "Sales Partner",
    "read_only": 1

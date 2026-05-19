@@ -202,6 +202,11 @@ frappe.ui.form.on('Item Allocation Shipment', {
 						frappe.model.set_value(cdt, cdn, 'eta', r.message.eta);
 
 						if (r.message.shipment_items) {
+							// Filter out completely blank/empty rows before appending items
+							if (frm.doc.items) {
+								frm.doc.items = frm.doc.items.filter(d => d.item_code || d.customer || d.allocation_request);
+							}
+							
 							r.message.shipment_items.forEach(function(item) {
 								let new_row = frm.add_child('items');
 								new_row.shipment = row.shipment_tracker;
