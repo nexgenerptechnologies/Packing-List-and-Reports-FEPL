@@ -15,8 +15,12 @@ frappe.ui.form.on('Item Allocation Sheet', {
 	},
 	refresh: function(frm) {
 		frappe.db.get_single_value('Packing List Settings', 'enable_item_allocation_sheet').then(val => {
-			if (val === 0) {
-				frappe.msgprint(__('Item Allocation Sheet is disabled in Settings.'));
+			if (val === 0 || val === "0") {
+				frappe.msgprint({
+					title: __('Allocation Disabled'),
+					indicator: 'red',
+					message: __('Item Allocation Sheet is disabled. Click <a href="/app/packing-list-settings">here</a> to go to Settings and enable it.')
+				});
 				frm.disable_save();
 			}
 		});
