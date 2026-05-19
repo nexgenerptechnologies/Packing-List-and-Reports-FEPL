@@ -27,6 +27,11 @@ frappe.ui.form.on('Item Allocation Sheet', {
 
 		frm.clear_custom_buttons();
 		
+		// Hide native submit button unless we are in the correct state
+		if (frm.doc.docstatus === 0 && frm.doc.status !== 'Pending Partner Finalization') {
+			frm.page.clear_primary_action();
+		}
+		
 		// 1. Download Template Buttons
 		if (frm.doc.status === 'Draft') {
 			frm.add_custom_button(__('Download Partner Template'), function() {
@@ -36,10 +41,14 @@ frappe.ui.form.on('Item Allocation Sheet', {
 			frm.add_custom_button(__('Download Team Lead Template'), function() {
 				window.open('/api/method/packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.download_team_leader_template?docname=' + frm.doc.name);
 			});
+		} else if (frm.doc.status === 'Pending Partner Finalization') {
+			frm.add_custom_button(__('Download Finalization Template'), function() {
+				window.open('/api/method/packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.download_partner_finalization_template?docname=' + frm.doc.name);
+			});
 		}
 
 		// 2. Upload Excel Action
-		if (frm.doc.excel_file && (frm.doc.status === 'Draft' || frm.doc.status === 'Pending Team Leader')) {
+		if (frm.doc.excel_file && frm.doc.docstatus === 0) {
 			frm.add_custom_button(__('Upload Excel Data'), function() {
 				frappe.call({
 					method: 'packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.upload_excel_data',
@@ -55,7 +64,7 @@ frappe.ui.form.on('Item Allocation Sheet', {
 		}
 
 		// 3. Workflow Action Buttons
-		if (frm.doc.status === 'Draft') {
+		if (frm.doc.status === 'Draft' && frm.doc.docstatus === 0) {
 			frm.add_custom_button(__('Send to Team Leader'), function() {
 				frm.set_value('status', 'Pending Team Leader');
 				frm.save().then(() => {
@@ -65,11 +74,13 @@ frappe.ui.form.on('Item Allocation Sheet', {
 			}).addClass('btn-primary');
 		}
 
-		if (frm.doc.status === 'Pending Team Leader') {
-			frm.add_custom_button(__('Approve Allocation'), function() {
-				frm.set_value('status', 'Approved');
+		let is_tl = frappe.user.has_role('System Manager') || frappe.user.has_role('Sales Manager');
+
+		if (frm.doc.status === 'Pending Team Leader' && frm.doc.docstatus === 0 && is_tl) {
+			frm.add_custom_button(__('Approve Quota'), function() {
+				frm.set_value('status', 'Pending Partner Finalization');
 				frm.save().then(() => {
-					frappe.msgprint(__('Allocation approved successfully.'));
+					frappe.msgprint(__('Quota approved and sent to Partner for finalization.'));
 					frm.reload_doc();
 				});
 			}).addClass('btn-primary');
@@ -89,19 +100,20 @@ frappe.ui.form.on('Item Allocation Sheet', {
 			frm.set_df_property('shipments', 'read_only', 0);
 		}
 		
-		let is_tl = frappe.user.has_role('System Manager') || frappe.user.has_role('Sales Manager');
 		let items_grid = frm.fields_dict['items'].grid;
 		
-		if (frm.doc.status === 'Approved') {
+		if (frm.doc.docstatus === 1) { // Submitted/Approved
 			items_grid.update_docfield_property('customer', 'read_only', 1);
 			items_grid.update_docfield_property('sales_order', 'read_only', 1);
 			items_grid.update_docfield_property('allocation_request', 'read_only', 1);
 			items_grid.update_docfield_property('allocated_qty', 'read_only', 1);
+			items_grid.update_docfield_property('final_allocation', 'read_only', 1);
 			frm.set_df_property('excel_file', 'read_only', 1);
 		} else if (frm.doc.status === 'Pending Team Leader') {
 			items_grid.update_docfield_property('customer', 'read_only', 1);
 			items_grid.update_docfield_property('sales_order', 'read_only', 1);
 			items_grid.update_docfield_property('allocation_request', 'read_only', 1);
+			items_grid.update_docfield_property('final_allocation', 'read_only', 1);
 			if (is_tl) {
 				items_grid.update_docfield_property('allocated_qty', 'read_only', 0);
 				frm.set_df_property('excel_file', 'read_only', 0);
@@ -109,11 +121,31 @@ frappe.ui.form.on('Item Allocation Sheet', {
 				items_grid.update_docfield_property('allocated_qty', 'read_only', 1);
 				frm.set_df_property('excel_file', 'read_only', 1);
 			}
+		} else if (frm.doc.status === 'Pending Partner Finalization') {
+			items_grid.update_docfield_property('customer', 'read_only', 1);
+			items_grid.update_docfield_property('sales_order', 'read_only', 1);
+			items_grid.update_docfield_property('allocation_request', 'read_only', 1);
+			items_grid.update_docfield_property('allocated_qty', 'read_only', 1);
+			
+			// Only Sales Partner can finalize final allocation
+			if (!is_tl) {
+				items_grid.update_docfield_property('final_allocation', 'read_only', 0);
+				frm.set_df_property('excel_file', 'read_only', 0);
+			} else {
+				items_grid.update_docfield_property('final_allocation', 'read_only', 1);
+				frm.set_df_property('excel_file', 'read_only', 1);
+			}
+			
+			// Show the Submit button
+			frm.page.set_primary_action(__('Submit Allocation'), function() {
+				frm.savesubmit();
+			});
 		} else { // Draft
 			items_grid.update_docfield_property('customer', 'read_only', 0);
 			items_grid.update_docfield_property('sales_order', 'read_only', 0);
 			items_grid.update_docfield_property('allocation_request', 'read_only', 0);
 			items_grid.update_docfield_property('allocated_qty', 'read_only', 1);
+			items_grid.update_docfield_property('final_allocation', 'read_only', 1);
 			frm.set_df_property('excel_file', 'read_only', 0);
 		}
 	}
@@ -162,6 +194,26 @@ frappe.ui.form.on('Partner Allocation Detail', {
 					frappe.model.set_value(item.doctype, item.name, 'total_allocation_request', total);
 				}
 			});
+		}
+	},
+	final_allocation: function(frm, cdt, cdn) {
+		let row = frappe.get_doc(cdt, cdn);
+		if (row.item_code) {
+			let final_total = 0;
+			let quota = 0;
+			frm.doc.items.forEach(function(item) {
+				if (item.item_code === row.item_code) {
+					final_total += flt(item.final_allocation);
+					quota = max(quota, flt(item.allocated_qty));
+				}
+			});
+			if (final_total > quota) {
+				frappe.msgprint({
+					title: __('Quota Exceeded'),
+					indicator: 'orange',
+					message: __('Total Final Allocation for Item {0} is {1}, which exceeds the Quota of {2}! Please reduce.', row.item_code, final_total, quota)
+				});
+			}
 		}
 	}
 });

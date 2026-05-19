@@ -25,7 +25,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Draft\nPending Team Leader\nApproved",
+   "options": "Draft\nPending Team Leader\nPending Partner Finalization\nApproved",
    "default": "Draft",
    "reqd": 1,
    "read_only": 1
@@ -58,7 +58,7 @@
   }
  ],
  "index_web_pages_for_search": 1,
- "is_submittable": 0,
+ "is_submittable": 1,
  "modified": "2024-05-19 00:00:00",
  "modified_by": "Administrator",
  "module": "Packing",
@@ -67,33 +67,48 @@
  "owner": "Administrator",
  "permissions": [
   {
+   "amend": 0,
+   "cancel": 1,
    "create": 1,
+   "delete": 1,
    "email": 1,
+   "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
    "role": "System Manager",
    "share": 1,
+   "submit": 1,
    "write": 1
   },
   {
+   "amend": 0,
+   "cancel": 1,
    "create": 1,
+   "delete": 1,
    "email": 1,
+   "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
    "role": "Sales Partner",
    "share": 1,
+   "submit": 1,
    "write": 1
   },
   {
+   "amend": 0,
+   "cancel": 1,
    "create": 1,
+   "delete": 1,
    "email": 1,
+   "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
    "role": "Sales Manager",
    "share": 1,
+   "submit": 1,
    "write": 1
   }
  ],

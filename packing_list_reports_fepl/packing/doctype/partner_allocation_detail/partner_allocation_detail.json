@@ -15,7 +15,8 @@
   "allocation_request",
   "total_allocation_request",
   "sales_partner",
-  "allocated_qty"
+  "allocated_qty",
+  "final_allocation"
  ],
  "fields": [
   {
@@ -93,7 +94,13 @@
    "fieldname": "allocated_qty",
    "fieldtype": "Float",
    "in_list_view": 1,
-   "label": "Allocated Qty"
+   "label": "TL Quota"
+  },
+  {
+   "fieldname": "final_allocation",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Final Allocation"
   }
  ],
  "index_web_pages_for_search": 1,
