@@ -5,7 +5,10 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "shipment_tracker"
+  "shipment_tracker",
+  "supplier",
+  "etd",
+  "eta"
  ],
  "fields": [
   {
@@ -15,6 +18,28 @@
    "label": "Shipment Tracker",
    "options": "Shipment Tracker",
    "reqd": 1
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Supplier Name",
+   "options": "Supplier",
+   "read_only": 1
+  },
+  {
+   "fieldname": "etd",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Expected Time of Dispatch (ETD)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "eta",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Expected Time of Arrival (ETA)",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,

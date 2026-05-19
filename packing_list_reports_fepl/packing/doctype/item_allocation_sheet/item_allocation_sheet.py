@@ -143,40 +143,129 @@ def upload_excel_data(docname):
 		if "item_code" not in col_map:
 			frappe.throw(_("Could not find 'Item Code' column in Excel file."))
 			
+		# Fetch all items in the selected shipments to strictly validate against
+		shipment_items = []
+		for s_row in doc.shipments:
+			if s_row.shipment_tracker:
+				items_in_shipment = frappe.get_all("Shipment Item", 
+					filters={"parent": s_row.shipment_tracker}, 
+					fields=["item_code", "item_name", "description", "qty"])
+				for item in items_in_shipment:
+					item["shipment_tracker"] = s_row.shipment_tracker
+					shipment_items.append(item)
+					
+		def normalize_str(s):
+			if not s: return ""
+			import re
+			s = str(s)
+			s = re.sub(r'<[^>]*>', '', s)
+			s = s.replace('\xa0', ' ').replace('\r', '').replace('\n', '')
+			s = " ".join(s.split())
+			return s.strip().lower()
+
+		current_item_code = ""
+		current_item_name = ""
+		current_description = ""
+		current_total_qty = 0.0
+
 		# Sales Partner Upload (Draft Stage)
 		if doc.status == "Draft":
 			doc.set("items", [])
+			excel_totals = {}
+			parsed_rows = []
+			row_idx = 1
+			
 			for row in sheet.iter_rows(min_row=2, values_only=True):
+				row_idx += 1
 				if not any(row): continue
-				item_code = row[col_map.get("item_code")] if "item_code" in col_map else ""
-				if not item_code: continue
 				
+				excel_item_code = row[col_map.get("item_code")] if "item_code" in col_map else None
+				excel_item_name = row[col_map.get("item_name")] if "item_name" in col_map else None
+				excel_desc = row[col_map.get("description")] if "description" in col_map else None
+				excel_qty = row[col_map.get("total_qty")] if "total_qty" in col_map else None
+				
+				# If Item Code is specified, we update tracking context
+				if excel_item_code and str(excel_item_code).strip():
+					current_item_code = str(excel_item_code).strip()
+					current_item_name = str(excel_item_name or "").strip()
+					current_description = str(excel_desc or "").strip()
+					current_total_qty = flt(excel_qty)
+					
+				if not current_item_code:
+					continue
+					
+				customer = str(row[col_map.get("customer")] or "").strip() if "customer" in col_map else ""
+				sales_order = str(row[col_map.get("sales_order")] or "").strip() if "sales_order" in col_map else ""
+				allocation_req = flt(row[col_map["allocation_request"]]) if "allocation_request" in col_map else 0.0
+				
+				# 1. Strict Reconciliation: Verify against items in the selected Shipment Trackers
+				matched_item = None
+				for s_item in shipment_items:
+					if normalize_str(s_item["item_code"]) == normalize_str(current_item_code):
+						if normalize_str(s_item["item_name"]) == normalize_str(current_item_name) and \
+						   normalize_str(s_item["description"]) == normalize_str(current_description):
+							matched_item = s_item
+							break
+							
+				if not matched_item:
+					frappe.throw(_("Row {0}: Item '{1}' (Name: '{2}', Desc: '{3}') does not strictly match any item in the selected Shipment Trackers.").format(
+						row_idx, current_item_code, current_item_name, current_description
+					))
+					
+				excel_totals[current_item_code] = excel_totals.get(current_item_code, 0.0) + allocation_req
+				
+				parsed_rows.append({
+					"item_code": current_item_code,
+					"item_name": current_item_name,
+					"description": current_description,
+					"total_qty": current_total_qty,
+					"customer": customer,
+					"sales_order": sales_order,
+					"allocation_request": allocation_req,
+					"shipment": matched_item["shipment_tracker"]
+				})
+				
+			# 2. Strict Limit Validation: Cannot exceed total Shipment Quantity
+			for item_code, total_req in excel_totals.items():
+				ship_qty = sum(item["qty"] for item in shipment_items if normalize_str(item["item_code"]) == normalize_str(item_code))
+				if total_req > ship_qty:
+					frappe.throw(_("Row {0} / Item Code '{1}': Total Allocation Request ({2}) exceeds the Shipment Quantity ({3})!").format(
+						row_idx, item_code, total_req, ship_qty
+					))
+					
+			# Append clean child rows
+			for r_data in parsed_rows:
 				child = doc.append("items", {})
-				child.item_code = str(item_code).strip()
-				if "item_name" in col_map: child.item_name = str(row[col_map["item_name"]] or "").strip()
-				if "description" in col_map: child.description = str(row[col_map["description"]] or "").strip()
-				if "total_qty" in col_map: child.total_qty = flt(row[col_map["total_qty"]])
-				if "customer" in col_map: child.customer = str(row[col_map["customer"]] or "").strip()
-				if "sales_order" in col_map: child.sales_order = str(row[col_map["sales_order"]] or "").strip()
-				if "allocation_request" in col_map: child.allocation_request = flt(row[col_map["allocation_request"]])
+				child.item_code = r_data["item_code"]
+				child.item_name = r_data["item_name"]
+				child.description = r_data["description"]
+				child.total_qty = r_data["total_qty"]
+				child.customer = r_data["customer"]
+				child.sales_order = r_data["sales_order"]
+				child.allocation_request = r_data["allocation_request"]
+				child.shipment = r_data["shipment"]
 				
 		# Team Leader Upload (Pending Team Leader Stage)
 		elif doc.status == "Pending Team Leader":
 			for row in sheet.iter_rows(min_row=2, values_only=True):
 				if not any(row): continue
-				item_code = str(row[col_map.get("item_code")] or "").strip()
-				if not item_code: continue
+				excel_item_code = row[col_map.get("item_code")] if "item_code" in col_map else None
+				if excel_item_code and str(excel_item_code).strip():
+					current_item_code = str(excel_item_code).strip()
+					
+				if not current_item_code:
+					continue
 				
 				customer = str(row[col_map.get("customer")] or "").strip() if "customer" in col_map else ""
 				sales_order = str(row[col_map.get("sales_order")] or "").strip() if "sales_order" in col_map else ""
 				allocated_qty = flt(row[col_map["allocated_qty"]]) if "allocated_qty" in col_map else 0.0
 				
 				for child in doc.items:
-					match = (child.item_code == item_code)
+					match = (normalize_str(child.item_code) == normalize_str(current_item_code))
 					if customer:
-						match = match and (str(child.customer).strip() == customer)
+						match = match and (normalize_str(child.customer) == normalize_str(customer))
 					if sales_order:
-						match = match and (str(child.sales_order).strip() == sales_order)
+						match = match and (normalize_str(child.sales_order) == normalize_str(sales_order))
 						
 					if match:
 						child.allocated_qty = allocated_qty
@@ -185,19 +274,23 @@ def upload_excel_data(docname):
 		elif doc.status == "Pending Partner Finalization":
 			for row in sheet.iter_rows(min_row=2, values_only=True):
 				if not any(row): continue
-				item_code = str(row[col_map.get("item_code")] or "").strip()
-				if not item_code: continue
+				excel_item_code = row[col_map.get("item_code")] if "item_code" in col_map else None
+				if excel_item_code and str(excel_item_code).strip():
+					current_item_code = str(excel_item_code).strip()
+					
+				if not current_item_code:
+					continue
 				
 				customer = str(row[col_map.get("customer")] or "").strip() if "customer" in col_map else ""
 				sales_order = str(row[col_map.get("sales_order")] or "").strip() if "sales_order" in col_map else ""
 				final_allocation = flt(row[col_map["final_allocation"]]) if "final_allocation" in col_map else 0.0
 				
 				for child in doc.items:
-					match = (child.item_code == item_code)
+					match = (normalize_str(child.item_code) == normalize_str(current_item_code))
 					if customer:
-						match = match and (str(child.customer).strip() == customer)
+						match = match and (normalize_str(child.customer) == normalize_str(customer))
 					if sales_order:
-						match = match and (str(child.sales_order).strip() == sales_order)
+						match = match and (normalize_str(child.sales_order) == normalize_str(sales_order))
 						
 					if match:
 						child.final_allocation = final_allocation

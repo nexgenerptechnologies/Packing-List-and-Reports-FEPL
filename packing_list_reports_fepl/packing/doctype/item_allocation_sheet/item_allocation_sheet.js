@@ -30,6 +30,15 @@ frappe.ui.form.on('Item Allocation Sheet', {
 				}
 			};
 		});
+
+		// Filter Shipment link inside shipments table to only show submitted Shipment Trackers
+		frm.set_query('shipment_tracker', 'shipments', function() {
+			return {
+				filters: {
+					docstatus: 1
+				}
+			};
+		});
 	},
 	refresh: function(frm) {
 		frappe.db.get_single_value('Packing List Settings', 'enable_item_allocation_sheet').then(val => {
@@ -53,7 +62,11 @@ frappe.ui.form.on('Item Allocation Sheet', {
 		// 1. Download Template Buttons
 		if (frm.doc.status === 'Draft') {
 			frm.add_custom_button(__('Download Partner Template'), function() {
-				window.open('/api/method/packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.download_partner_template?docname=' + frm.doc.name);
+				let url = '/api/method/packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.download_partner_template';
+				if (!frm.is_new()) {
+					url += '?docname=' + frm.doc.name;
+				}
+				window.open(url);
 			});
 		} else if (frm.doc.status === 'Pending Team Leader') {
 			frm.add_custom_button(__('Download Team Lead Template'), function() {
@@ -182,16 +195,23 @@ frappe.ui.form.on('Item Allocation Shipment', {
 					name: row.shipment_tracker
 				},
 				callback: function(r) {
-					if (r.message && r.message.shipment_items) {
-						r.message.shipment_items.forEach(function(item) {
-							let new_row = frm.add_child('items');
-							new_row.shipment = row.shipment_tracker;
-							new_row.item_code = item.item_code;
-							new_row.item_name = item.item_name;
-							new_row.description = item.description;
-							new_row.total_qty = item.qty;
-						});
-						frm.refresh_field('items');
+					if (r.message) {
+						// Auto-populate Supplier Name, ETD, ETA on child row
+						frappe.model.set_value(cdt, cdn, 'supplier', r.message.supplier);
+						frappe.model.set_value(cdt, cdn, 'etd', r.message.etd);
+						frappe.model.set_value(cdt, cdn, 'eta', r.message.eta);
+
+						if (r.message.shipment_items) {
+							r.message.shipment_items.forEach(function(item) {
+								let new_row = frm.add_child('items');
+								new_row.shipment = row.shipment_tracker;
+								new_row.item_code = item.item_code;
+								new_row.item_name = item.item_name;
+								new_row.description = item.description;
+								new_row.total_qty = item.qty;
+							});
+							frm.refresh_field('items');
+						}
 					}
 				}
 			});
@@ -218,24 +238,42 @@ frappe.ui.form.on('Partner Allocation Detail', {
 		], function(values){
 			let num = values.splits;
 			if (num > 0) {
-				for (let i = 0; i < num; i++) {
-					let new_row = frm.add_child('items');
-					new_row.shipment = row.shipment;
-					new_row.item_code = row.item_code;
-					new_row.item_name = row.item_name;
-					new_row.description = row.description;
-					new_row.total_qty = row.total_qty;
-					new_row.sales_partner = row.sales_partner;
-					new_row.allocated_qty = row.allocated_qty; // Copy TL quota if any
+				let items = frm.doc.items || [];
+				let clicked_index = items.indexOf(row);
+				
+				if (clicked_index !== -1) {
+					let new_rows = [];
+					for (let i = 0; i < num; i++) {
+						let new_row = frappe.model.add_child(frm.doc, 'Partner Allocation Detail', 'items');
+						new_row.shipment = row.shipment;
+						new_row.item_code = row.item_code;
+						new_row.item_name = row.item_name;
+						new_row.description = row.description;
+						new_row.total_qty = row.total_qty;
+						new_row.sales_partner = row.sales_partner;
+						new_row.allocated_qty = row.allocated_qty;
+						
+						new_row.customer = '';
+						new_row.sales_order = '';
+						new_row.allocation_request = 0;
+						new_row.final_allocation = 0;
+						new_rows.push(new_row);
+					}
 					
-					// Keep split rows empty for custom customer allocation
-					new_row.customer = '';
-					new_row.sales_order = '';
-					new_row.allocation_request = 0;
-					new_row.final_allocation = 0;
+					// Remove the appended child items from the end of the array
+					items.splice(items.length - num, num);
+					
+					// Insert right after the clicked row!
+					items.splice(clicked_index + 1, 0, ...new_rows);
+					
+					// Re-index all child items in the grid
+					items.forEach((item, idx) => {
+						item.idx = idx + 1;
+					});
+					
+					frm.refresh_field('items');
+					frappe.show_alert({message: __('{0} split rows added directly below.', [num]), color: 'green'});
 				}
-				frm.refresh_field('items');
-				frappe.show_alert({message: __('{0} split rows added successfully.', [num]), color: 'green'});
 			}
 		}, __('Split Row'), __('Split'));
 	},
