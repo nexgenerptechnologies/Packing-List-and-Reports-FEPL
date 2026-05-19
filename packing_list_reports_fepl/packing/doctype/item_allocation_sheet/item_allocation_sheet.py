@@ -404,3 +404,69 @@ def download_partner_finalization_template(docname=None):
 	frappe.response['filename'] = "Sales_Partner_Final_Allocation_Template.xlsx"
 	frappe.response['filecontent'] = output.getvalue()
 	frappe.response['type'] = 'binary'
+
+@frappe.whitelist()
+def fetch_partner_requests(docname):
+	doc = frappe.get_doc("Item Allocation Sheet", docname)
+	if doc.docstatus == 1:
+		frappe.throw(_("Cannot fetch requests for a submitted document."))
+		
+	doc.set("items", [])
+	
+	selected_shipments = [s.shipment_tracker for s in doc.shipments if s.shipment_tracker]
+	if not selected_shipments:
+		frappe.throw(_("Please select at least one Shipment Tracker first."))
+		
+	pending_sheets = frappe.get_all("Item Allocation Sheet", 
+		filters={
+			"status": "Pending Team Leader",
+			"docstatus": 0,
+			"name": ["!=", docname]
+		}, 
+		fields=["name", "sales_partner"])
+		
+	matched_count = 0
+	for sheet_meta in pending_sheets:
+		sheet = frappe.get_doc("Item Allocation Sheet", sheet_meta["name"])
+		for item in sheet.items:
+			if item.shipment in selected_shipments:
+				child = doc.append("items", {})
+				child.shipment = item.shipment
+				child.item_code = item.item_code
+				child.item_name = item.item_name
+				child.description = item.description
+				child.total_qty = item.total_qty
+				child.customer = item.customer
+				child.sales_order = item.sales_order
+				child.allocation_request = item.allocation_request
+				child.sales_partner = sheet.sales_partner or item.sales_partner
+				child.allocated_qty = item.allocated_qty or item.allocation_request
+				child.source_doc = sheet.name
+				child.source_row = item.name
+				matched_count += 1
+				
+	doc.save()
+	return f"Successfully fetched {matched_count} partner requests."
+
+@frappe.whitelist()
+def distribute_tl_quotas(docname):
+	doc = frappe.get_doc("Item Allocation Sheet", docname)
+	if doc.docstatus == 1:
+		frappe.throw(_("Cannot distribute quotas for a submitted document."))
+		
+	updated_docs = set()
+	
+	for item in doc.items:
+		if item.source_doc and item.source_row:
+			frappe.db.set_value("Partner Allocation Detail", item.source_row, "allocated_qty", item.allocated_qty)
+			updated_docs.add(item.source_doc)
+			
+	for s_name in updated_docs:
+		s_doc = frappe.get_doc("Item Allocation Sheet", s_name)
+		s_doc.status = "Pending Partner Finalization"
+		s_doc.save()
+		
+	doc.status = "Approved"
+	doc.save()
+	return "Quotas successfully approved and distributed to all Sales Partners."
+

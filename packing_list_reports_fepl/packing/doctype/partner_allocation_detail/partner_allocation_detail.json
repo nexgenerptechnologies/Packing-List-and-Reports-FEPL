@@ -17,7 +17,9 @@
   "total_allocation_request",
   "sales_partner",
   "allocated_qty",
-  "final_allocation"
+  "final_allocation",
+  "source_doc",
+  "source_row"
  ],
  "fields": [
   {
@@ -107,6 +109,20 @@
    "fieldtype": "Float",
    "in_list_view": 1,
    "label": "Final Allocation"
+  },
+  {
+   "fieldname": "source_doc",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Source Doc",
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_row",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Source Row",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
