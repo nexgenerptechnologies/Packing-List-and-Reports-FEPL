@@ -25,7 +25,20 @@ class ItemAllocationSheet(Document):
 	def before_save(self):
 		# Re-map sales partner based on user if not already set
 		if not self.sales_partner:
-			sp_name = frappe.db.get_value("Sales Partner", {"user": frappe.session.user}, "name")
+			sp_name = None
+			try:
+				# Standard ERPNext mapping via Portal User child table
+				sp_name = frappe.db.get_value("Portal User", {"user": frappe.session.user, "parenttype": "Sales Partner"}, "parent")
+			except Exception:
+				pass
+				
+			if not sp_name:
+				try:
+					# Fallback: check if Sales Partner name matches the session user email
+					sp_name = frappe.db.get_value("Sales Partner", {"name": frappe.session.user}, "name")
+				except Exception:
+					pass
+					
 			if sp_name:
 				self.sales_partner = sp_name
 				
