@@ -1,4 +1,23 @@
 frappe.ui.form.on('Shipment Tracker', {
+	validate: function(frm) {
+		let missing = [];
+		(frm.doc.shipment_items || []).forEach(item => {
+			if (!item.supplier_invoice) {
+				missing.push(__('Row {0}: Supplier Invoice # is mandatory.', [item.idx]));
+			}
+			if (!item.bill_date) {
+				missing.push(__('Row {0}: Invoice Date is mandatory.', [item.idx]));
+			}
+		});
+		if (missing.length > 0) {
+			frappe.msgprint({
+				title: __('Validation Error'),
+				indicator: 'red',
+				message: missing.join('<br>')
+			});
+			frappe.validated = false;
+		}
+	},
 	refresh: function(frm) {
 		frm.clear_custom_buttons();
 		

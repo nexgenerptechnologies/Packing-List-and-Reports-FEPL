@@ -3,6 +3,13 @@ from frappe.model.document import Document
 from frappe import _
 
 class ShipmentTracker(Document):
+	def validate(self):
+		for item in self.shipment_items:
+			if not item.supplier_invoice:
+				frappe.throw(_("Row {0}: Supplier Invoice # is mandatory.").format(item.idx))
+			if not item.bill_date:
+				frappe.throw(_("Row {0}: Invoice Date is mandatory.").format(item.idx))
+
 	def before_submit(self):
 		if not self.shipment_items or len(self.shipment_items) == 0:
 			frappe.throw(_("Please fetch or add items to the shipment before submitting."))
