@@ -54,8 +54,19 @@ class ShipmentTracker(Document):
 					discrepancies.append(_("Item Name mismatch (Expected: '{0}', Got: '{1}')").format(po_item.item_name, item.item_name))
 				if item.description and po_item.description and normalize_text(item.description) != normalize_text(po_item.description):
 					discrepancies.append(_("Description mismatch (Expected: '{0}', Got: '{1}')").format(po_item.description, item.description))
-				if item.qty > (po_item.qty - po_item.received_qty):
-					discrepancies.append(_("Quantity exceeds pending amount (Pending: {0}, Got: {1})").format(po_item.qty - po_item.received_qty, item.qty))
+				# Calculate total shipped qty in other submitted trackers
+				other_shipped = frappe.db.sql("""
+					SELECT SUM(qty)
+					FROM `tabShipment Item`
+					WHERE purchase_order_item = %s
+					  AND docstatus = 1
+					  AND parent != %s
+				""", (item.purchase_order_item, self.name))[0][0] or 0.0
+				
+				pending_qty = max(0.0, min(po_item.qty - other_shipped, po_item.qty - po_item.received_qty))
+				
+				if item.qty > pending_qty:
+					discrepancies.append(_("Quantity exceeds pending amount (Pending: {0}, Got: {1})").format(pending_qty, item.qty))
 				if abs(float(item.rate) - float(po_item.rate)) > 0.01:
 					discrepancies.append(_("Rate mismatch (Expected: {0}, Got: {1})").format(po_item.rate, item.rate))
 				

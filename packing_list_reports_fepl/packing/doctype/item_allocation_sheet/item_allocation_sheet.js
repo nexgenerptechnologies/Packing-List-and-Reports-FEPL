@@ -233,18 +233,40 @@ frappe.ui.form.on('Item Allocation Shipment', {
 						frappe.model.set_value(cdt, cdn, 'eta', r.message.eta);
 
 						if (r.message.shipment_items) {
+							// Group and club shipment items by item_code
+							let clubbed_items = {};
+							r.message.shipment_items.forEach(function(item) {
+								let key = item.item_code.trim();
+								if (!clubbed_items[key]) {
+									clubbed_items[key] = {
+										shipment: row.shipment_tracker,
+										item_code: item.item_code,
+										item_name: item.item_name,
+										description: item.description,
+										total_qty: 0.0
+									};
+								}
+								clubbed_items[key].total_qty += flt(item.qty);
+							});
+
 							// Filter out completely blank/empty rows before appending items
 							if (frm.doc.items) {
 								frm.doc.items = frm.doc.items.filter(d => d.item_code || d.customer || d.allocation_request);
 							}
 							
-							r.message.shipment_items.forEach(function(item) {
-								let new_row = frm.add_child('items');
-								new_row.shipment = row.shipment_tracker;
-								new_row.item_code = item.item_code;
-								new_row.item_name = item.item_name;
-								new_row.description = item.description;
-								new_row.total_qty = item.qty;
+							// Append the clubbed items
+							Object.values(clubbed_items).forEach(function(c_item) {
+								let existing = frm.doc.items ? frm.doc.items.find(d => d.item_code === c_item.item_code) : null;
+								if (existing) {
+									existing.total_qty = flt(existing.total_qty) + flt(c_item.total_qty);
+								} else {
+									let new_row = frm.add_child('items');
+									new_row.shipment = c_item.shipment;
+									new_row.item_code = c_item.item_code;
+									new_row.item_name = c_item.item_name;
+									new_row.description = c_item.description;
+									new_row.total_qty = c_item.total_qty;
+								}
 							});
 							frm.refresh_field('items');
 						}
@@ -340,6 +362,15 @@ frappe.ui.form.on('Partner Allocation Detail', {
 					frappe.model.set_value(item.doctype, item.name, 'total_allocation_request', total);
 				}
 			});
+			
+			let max_qty = flt(row.total_qty);
+			if (total > max_qty) {
+				frappe.msgprint({
+					title: __('Allocation Request Exceeded'),
+					indicator: 'orange',
+					message: __('Total Allocation Request for Item {0} is {1}, which exceeds the Shipment Quantity of {2}! Please reduce.', row.item_code, total, max_qty)
+				});
+			}
 		}
 	},
 	final_allocation: function(frm, cdt, cdn) {

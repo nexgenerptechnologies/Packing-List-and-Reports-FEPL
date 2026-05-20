@@ -9,6 +9,35 @@ class ItemAllocationSheet(Document):
 	def validate(self):
 		ensure_custom_fields()
 		
+		# Validation: Make sure Total Allocation Request does not exceed Shipment Quantity per Item Code
+		selected_shipments = [s.shipment_tracker for s in self.shipments if s.shipment_tracker]
+		if selected_shipments:
+			shipment_qtys = {}
+			ship_items = frappe.get_all("Shipment Item",
+				filters={"parent": ["in", selected_shipments]},
+				fields=["item_code", "qty"])
+			for s_item in ship_items:
+				ic = s_item.item_code.strip()
+				shipment_qtys[ic] = shipment_qtys.get(ic, 0.0) + (s_item.qty or 0.0)
+
+			allocation_reqs = {}
+			for item in self.items:
+				ic = item.item_code.strip() if item.item_code else ""
+				if ic:
+					allocation_reqs[ic] = allocation_reqs.get(ic, 0.0) + (item.allocation_request or 0.0)
+
+			for ic, total_req in allocation_reqs.items():
+				match_key = None
+				for k in shipment_qtys.keys():
+					if k.lower() == ic.lower():
+						match_key = k
+						break
+				allowed_qty = shipment_qtys.get(match_key, 0.0) if match_key else 0.0
+				if total_req > allowed_qty:
+					frappe.throw(_("Item Code '{0}': Total Allocation Request ({1}) exceeds the Shipment Quantity ({2})!").format(
+						ic, total_req, allowed_qty
+					))
+
 		# Validation: Make sure Final Allocation sum does not exceed TL Quota per Item Code
 		if self.status == "Pending Partner Finalization":
 			item_quotas = {}
@@ -238,7 +267,10 @@ def upload_excel_data(docname):
 				child.item_code = r_data["item_code"]
 				child.item_name = r_data["item_name"]
 				child.description = r_data["description"]
-				child.total_qty = r_data["total_qty"]
+				# Force total_qty to be the clubbed sum from the selected shipment items!
+				ic = r_data["item_code"]
+				ship_qty = sum(item["qty"] for item in shipment_items if normalize_str(item["item_code"]) == normalize_str(ic))
+				child.total_qty = ship_qty
 				child.customer = r_data["customer"]
 				child.sales_order = r_data["sales_order"]
 				child.allocation_request = r_data["allocation_request"]
