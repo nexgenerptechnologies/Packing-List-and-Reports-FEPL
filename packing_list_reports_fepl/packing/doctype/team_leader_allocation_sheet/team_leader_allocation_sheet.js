@@ -4,7 +4,6 @@
 
 frappe.ui.form.on('Team Leader Allocation Sheet', {
 	setup: function(frm) {
-		// Filter Shipment link inside shipments table to only show submitted Shipment Trackers
 		frm.set_query('shipment_tracker', 'shipments', function() {
 			return { filters: { docstatus: 1 } };
 		});
@@ -13,8 +12,8 @@ frappe.ui.form.on('Team Leader Allocation Sheet', {
 	refresh: function(frm) {
 		frm.clear_custom_buttons();
 
-		// Hide the summary dashboard section since it's removed
-		frm.toggle_display('summary_html_section', false);
+		// Keep the dashboard section visible for our custom matrix grid
+		frm.toggle_display('summary_html_section', true);
 
 		if (frm.doc.status === 'Draft') {
 			// Fetch Partner Requests
@@ -93,6 +92,9 @@ frappe.ui.form.on('Team Leader Allocation Sheet', {
 			frm.set_df_property('excel_file', 'read_only', 0);
 			items_grid.update_docfield_property('allocated_qty', 'read_only', 0);
 		}
+
+		// Render the custom Interactive Allocation Matrix Grid
+		render_allocation_matrix(frm);
 	}
 });
 
@@ -114,3 +116,254 @@ frappe.ui.form.on('Item Allocation Shipment', {
 		});
 	}
 });
+
+function render_allocation_matrix(frm) {
+	let wrapper = $(frm.fields_dict['summary_html'].wrapper);
+	wrapper.empty();
+
+	if (!frm.doc.items || frm.doc.items.length === 0) {
+		wrapper.html(`
+			<div style="text-align: center; padding: 40px 20px; color: #8a96a3; border: 1px dashed var(--border-color); border-radius: 8px; margin: 15px 0; background: var(--card-bg);">
+				<p style="font-size: 16px; font-weight: 600; margin-bottom: 8px; color: var(--text-color);">No Partner Requests Loaded</p>
+				<p style="font-size: 13px; margin: 0;">Select shipments above and click <strong>Fetch Partner Requests</strong> to populate the allocation matrix.</p>
+			</div>
+		`);
+		return;
+	}
+
+	// Fetch SPQs from item master first
+	frappe.call({
+		method: 'packing_list_reports_fepl.packing.doctype.team_leader_allocation_sheet.team_leader_allocation_sheet.get_item_spqs',
+		args: { docname: frm.doc.name },
+		callback: function(r) {
+			let spq_cache = r.message || {};
+			build_matrix_html(frm, wrapper, spq_cache);
+		}
+	});
+}
+
+function build_matrix_html(frm, wrapper, spq_cache) {
+	let all_partners = [];
+	let items_by_code = {};
+
+	frm.doc.items.forEach(item => {
+		if (!item.item_code) return;
+		if (item.sales_partner && !all_partners.includes(item.sales_partner)) {
+			all_partners.push(item.sales_partner);
+		}
+	});
+	all_partners.sort();
+
+	frm.doc.items.forEach(item => {
+		if (!item.item_code) return;
+		if (!items_by_code[item.item_code]) {
+			items_by_code[item.item_code] = {
+				item_code: item.item_code,
+				item_name: item.item_name || '',
+				description: item.description || '',
+				total_qty: item.total_qty || 0,
+				spq: spq_cache[item.item_code] || 1,
+				partners: {},
+				total_req: 0,
+				total_quota: 0
+			};
+		}
+		items_by_code[item.item_code].partners[item.sales_partner] = item;
+		items_by_code[item.item_code].total_req += item.allocation_request || 0;
+		items_by_code[item.item_code].total_quota += item.allocated_qty || 0;
+	});
+
+	let style_html = `
+		<style>
+			.matrix-table {
+				width: 100%;
+				border-collapse: collapse;
+				font-size: 12px;
+				margin-top: 10px;
+			}
+			.matrix-table th {
+				background: var(--bg-light-gray);
+				font-weight: 600;
+				color: var(--text-color);
+				padding: 10px 8px;
+				border: 1px solid var(--border-color);
+				text-align: center;
+				white-space: nowrap;
+			}
+			.matrix-table td {
+				padding: 8px;
+				border: 1px solid var(--border-color);
+				vertical-align: middle;
+				color: var(--text-color);
+			}
+			.matrix-sticky-col {
+				position: sticky;
+				left: 0;
+				background: var(--card-bg) !important;
+				z-index: 1;
+				box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+			}
+			.matrix-quota-input {
+				padding: 4px 6px;
+				font-size: 12px;
+				height: 28px;
+				text-align: right;
+				width: 100%;
+				max-width: 110px;
+				border-radius: 4px;
+				border: 1px solid var(--border-color);
+				background: var(--bg-color);
+				font-weight: 500;
+				color: var(--text-color);
+				transition: border-color 0.2s;
+			}
+			.matrix-quota-input:focus {
+				border-color: var(--primary);
+				outline: none;
+				box-shadow: 0 0 0 2px rgba(31, 73, 125, 0.15);
+			}
+			.matrix-quota-input:disabled {
+				background: var(--bg-light-gray);
+				cursor: not-allowed;
+			}
+			.req-label {
+				font-size: 10px;
+				color: var(--text-muted);
+				margin-bottom: 2px;
+				text-align: right;
+			}
+			.warning-badge {
+				background: #fdf2f2;
+				color: #d9534f;
+				border: 1px solid #f5c6cb;
+				border-radius: 4px;
+				padding: 2px 6px;
+				font-weight: 600;
+				font-size: 11px;
+				display: inline-block;
+			}
+		</style>
+	`;
+
+	let table_html = style_html + `
+		<div class="matrix-container" style="margin: 15px 0;">
+			<h4 style="margin-bottom: 12px; font-weight: 600; color: var(--text-color);">Interactive Allocation Matrix</h4>
+			<p class="text-muted" style="font-size: 13px; margin-bottom: 15px;">
+				Use this grid to allocate quotas to each Sales Partner. Any modifications here immediately update the requests list in real time.
+			</p>
+			<div style="overflow-x: auto; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg);">
+				<table class="table table-bordered matrix-table" style="margin: 0; min-width: 1000px;">
+					<thead>
+						<tr>
+							<th class="matrix-sticky-col" style="text-align: left; width: 120px;">Item Code</th>
+							<th style="text-align: left; width: 150px;">Item Name</th>
+							<th style="text-align: left; max-width: 200px;">Description</th>
+							<th style="text-align: right; width: 95px;">Shipment Qty</th>
+							<th style="text-align: center; width: 65px;">SPQ</th>
+							${all_partners.map(p => `
+								<th style="background: rgba(31, 73, 125, 0.04); min-width: 110px;">${p}</th>
+							`).join('')}
+							<th style="text-align: right; width: 100px; background: #FFF9E6;">Total Request</th>
+							<th style="text-align: right; width: 100px; background: #E6F4EA;">Total Quota</th>
+							<th style="text-align: right; width: 110px;">Remaining Qty</th>
+						</tr>
+					</thead>
+					<tbody>
+	`;
+
+	Object.keys(items_by_code).forEach(item_code => {
+		let details = items_by_code[item_code];
+		let remaining_qty = details.total_qty - details.total_quota;
+		let is_over = details.total_quota > details.total_qty;
+
+		table_html += `
+			<tr data-item-code="${item_code}">
+				<td class="matrix-sticky-col" style="font-weight: 600;">${item_code}</td>
+				<td style="font-weight: 500;">${details.item_name}</td>
+				<td style="font-size: 11px; color: var(--text-muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${details.description}">${details.description}</td>
+				<td style="text-align: right; font-weight: 500;">${frappe.format(details.total_qty, {fieldtype: 'Float'})}</td>
+				<td style="text-align: center; color: #555; font-weight: 500;">${details.spq}</td>
+				
+				<!-- Partners -->
+				${all_partners.map(p => {
+					let row_item = details.partners[p];
+					if (row_item) {
+						return `
+							<td style="background: rgba(31, 73, 125, 0.01); text-align: center; vertical-align: middle;">
+								<div class="req-label">Req: ${frappe.format(row_item.allocation_request, {fieldtype: 'Float'})}</div>
+								<input type="number" 
+									class="matrix-quota-input" 
+									data-row-name="${row_item.name}" 
+									data-item-code="${item_code}"
+									data-partner="${p}"
+									value="${row_item.allocated_qty || 0}" 
+									step="${details.spq}"
+									${frm.doc.status === 'Approved' ? 'disabled' : ''}>
+							</td>
+						`;
+					} else {
+						return `<td style="text-align: center; color: #ccc; font-style: italic;">-</td>`;
+					}
+				}).join('')}
+				
+				<td style="text-align: right; background: #FFF9E6; font-weight: 500;">${frappe.format(details.total_req, {fieldtype: 'Float'})}</td>
+				<td class="total-quota-cell" style="text-align: right; background: #E6F4EA; font-weight: 600;" data-item-code="${item_code}">${frappe.format(details.total_quota, {fieldtype: 'Float'})}</td>
+				<td class="remaining-qty-cell" style="text-align: right; font-weight: 600; color: ${is_over ? '#d9534f' : '#2e7d32'}; background: ${is_over ? '#fdf2f2' : '#f4faf6'};" data-item-code="${item_code}" data-total-qty="${details.total_qty}">
+					${frappe.format(remaining_qty, {fieldtype: 'Float'})}
+				</td>
+			</tr>
+		`;
+	});
+
+	table_html += `
+					</tbody>
+				</table>
+			</div>
+		</div>
+	`;
+
+	wrapper.html(table_html);
+
+	// Zero-lag focus-preserving live updates
+	wrapper.off('input', '.matrix-quota-input');
+	wrapper.on('input', '.matrix-quota-input', function() {
+		let input = $(this);
+		let item_code = input.data('item-code');
+		
+		let total_quota = 0;
+		wrapper.find(`.matrix-quota-input[data-item-code="${item_code}"]`).each(function() {
+			total_quota += parseFloat($(this).val()) || 0;
+		});
+		
+		let quota_cell = wrapper.find(`.total-quota-cell[data-item-code="${item_code}"]`);
+		quota_cell.text(frappe.format(total_quota, {fieldtype: 'Float'}));
+		
+		let rem_cell = wrapper.find(`.remaining-qty-cell[data-item-code="${item_code}"]`);
+		let shipment_qty = parseFloat(rem_cell.data('total-qty')) || 0;
+		let remaining_qty = shipment_qty - total_quota;
+		
+		rem_cell.text(frappe.format(remaining_qty, {fieldtype: 'Float'}));
+		
+		if (remaining_qty < 0) {
+			rem_cell.css({
+				'color': '#d9534f',
+				'background': '#fdf2f2'
+			});
+		} else {
+			rem_cell.css({
+				'color': '#2e7d32',
+				'background': '#f4faf6'
+			});
+		}
+	});
+
+	// Write to underlying model on change (blur / focus loss)
+	wrapper.off('change', '.matrix-quota-input');
+	wrapper.on('change', '.matrix-quota-input', function() {
+		let input = $(this);
+		let row_name = input.data('row-name');
+		let val = parseFloat(input.val()) || 0;
+		
+		frappe.model.set_value('Team Leader Allocation Detail', row_name, 'allocated_qty', val);
+	});
+}
