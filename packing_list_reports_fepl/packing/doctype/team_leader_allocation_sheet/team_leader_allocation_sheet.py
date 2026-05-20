@@ -100,10 +100,18 @@ def get_item_spqs(docname):
 	doc = frappe.get_doc("Team Leader Allocation Sheet", docname)
 	item_codes = list(set([item.item_code for item in doc.items if item.item_code]))
 	spqs = {}
+	
+	# Defensive check: does the custom field exist on Item?
+	has_spq = frappe.get_meta("Item").has_field("custom_standard_packing_qty")
+	
 	if item_codes:
-		items_data = frappe.get_all("Item", filters={"name": ["in", item_codes]}, fields=["name", "custom_standard_packing_qty"])
-		for item in items_data:
-			spqs[item.name] = item.custom_standard_packing_qty or 1
+		if has_spq:
+			items_data = frappe.get_all("Item", filters={"name": ["in", item_codes]}, fields=["name", "custom_standard_packing_qty"])
+			for item in items_data:
+				spqs[item.name] = item.custom_standard_packing_qty or 1
+		else:
+			for code in item_codes:
+				spqs[code] = 1
 	return spqs
 
 @frappe.whitelist()
@@ -116,11 +124,16 @@ def download_tl_template(docname=None):
 	items_by_code = {}
 	all_partners = sorted(list(set([item.sales_partner for item in doc.items if item.sales_partner])))
 	
+	# Defensive check: does the custom field exist on Item?
+	has_spq = frappe.get_meta("Item").has_field("custom_standard_packing_qty")
+	
 	for item in doc.items:
 		if not item.item_code:
 			continue
 		if item.item_code not in items_by_code:
-			spq = frappe.db.get_value("Item", item.item_code, "custom_standard_packing_qty") or 1
+			spq = 1
+			if has_spq:
+				spq = frappe.db.get_value("Item", item.item_code, "custom_standard_packing_qty") or 1
 			items_by_code[item.item_code] = {
 				"item_code": item.item_code,
 				"item_name": item.item_name,
