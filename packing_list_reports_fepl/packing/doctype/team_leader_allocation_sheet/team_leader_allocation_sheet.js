@@ -4,20 +4,34 @@
 
 frappe.ui.form.on('Team Leader Allocation Sheet', {
 	setup: function(frm) {
+		frm.checked_partners = new Set();
+
 		// Filter Shipment link inside shipments table to only show submitted Shipment Trackers
 		frm.set_query('shipment_tracker', 'shipments', function() {
-			return {
-				filters: {
-					docstatus: 1
-				}
-			};
+			return { filters: { docstatus: 1 } };
 		});
 	},
+
 	refresh: function(frm) {
 		frm.clear_custom_buttons();
-		
+
+		// Initialise checked_partners from items on first load
+		let all_partners = new Set();
+		(frm.doc.items || []).forEach(item => {
+			if (item.sales_partner) all_partners.add(item.sales_partner);
+		});
+
+		if (!frm.checked_partners || frm.checked_partners.size === 0) {
+			frm.checked_partners = new Set(all_partners);
+		} else {
+			frm.checked_partners.forEach(p => {
+				if (!all_partners.has(p)) frm.checked_partners.delete(p);
+			});
+			all_partners.forEach(p => frm.checked_partners.add(p));
+		}
+
 		if (frm.doc.status === 'Draft') {
-			// 1. Fetch Partner Requests
+			// ── Fetch Partner Requests ──
 			frm.add_custom_button(__('Fetch Partner Requests'), function() {
 				frm.save().then(() => {
 					frappe.call({
@@ -25,24 +39,22 @@ frappe.ui.form.on('Team Leader Allocation Sheet', {
 						args: { docname: frm.doc.name },
 						callback: function(r) {
 							if (!r.exc) {
-								frappe.show_alert({message: __(r.message), color: 'green'});
+								frappe.show_alert({ message: __(r.message), indicator: 'green' });
 								frm.reload_doc();
 							}
 						}
 					});
 				});
 			}).addClass('btn-primary');
-			
-			// 2. Download Template
+
+			// ── Download Template ──
 			frm.add_custom_button(__('Download Template'), function() {
 				let url = '/api/method/packing_list_reports_fepl.packing.doctype.team_leader_allocation_sheet.team_leader_allocation_sheet.download_tl_template';
-				if (!frm.is_new()) {
-					url += '?docname=' + frm.doc.name;
-				}
+				if (!frm.is_new()) url += '?docname=' + frm.doc.name;
 				window.open(url);
 			});
-			
-			// 3. Upload Excel
+
+			// ── Upload Excel Data ──
 			if (frm.doc.excel_file) {
 				frm.add_custom_button(__('Upload Excel Data'), function() {
 					frm.save().then(() => {
@@ -51,7 +63,7 @@ frappe.ui.form.on('Team Leader Allocation Sheet', {
 							args: { docname: frm.doc.name },
 							callback: function(r) {
 								if (!r.exc) {
-									frappe.show_alert({message: __(r.message), color: 'green'});
+									frappe.show_alert({ message: __(r.message), indicator: 'green' });
 									frm.reload_doc();
 								}
 							}
@@ -59,59 +71,57 @@ frappe.ui.form.on('Team Leader Allocation Sheet', {
 					});
 				}).addClass('btn-primary');
 			}
-			
-			// 4. Approve & Distribute
+
+			// ── Approve & Distribute ──
 			if (frm.doc.items && frm.doc.items.length > 0) {
 				frm.add_custom_button(__('Approve & Distribute Quotas'), function() {
-					frappe.confirm(__('Are you sure you want to approve and distribute these quotas to all Sales Partners? This will update their individual sheets and transition them to Partner Finalization stage.'), function() {
-						frm.save().then(() => {
-							frappe.call({
-								method: 'packing_list_reports_fepl.packing.doctype.team_leader_allocation_sheet.team_leader_allocation_sheet.distribute_tl_quotas',
-								args: { docname: frm.doc.name },
-								callback: function(r) {
-									if (!r.exc) {
-										frappe.msgprint(__('Quotas successfully approved and distributed to all Sales Partners.'));
-										frm.reload_doc();
+					frappe.confirm(
+						__('Are you sure you want to approve and distribute these quotas to all Sales Partners? This will update their individual sheets and move them to Partner Finalization stage.'),
+						function() {
+							frm.save().then(() => {
+								frappe.call({
+									method: 'packing_list_reports_fepl.packing.doctype.team_leader_allocation_sheet.team_leader_allocation_sheet.distribute_tl_quotas',
+									args: { docname: frm.doc.name },
+									callback: function(r) {
+										if (!r.exc) {
+											frappe.msgprint(__('Quotas successfully approved and distributed to all Sales Partners.'));
+											frm.reload_doc();
+										}
 									}
-								}
+								});
 							});
-						});
-					});
+						}
+					);
 				}).addClass('btn-success');
 			}
 		}
-		
-		// Set read only rules
+
+		// Read-only rules
 		let items_grid = frm.fields_dict['items'].grid;
 		if (frm.doc.status === 'Approved') {
 			frm.set_df_property('shipments', 'read_only', 1);
 			frm.set_df_property('excel_file', 'read_only', 1);
-			frm.set_df_property('sales_partner_filter', 'read_only', 1);
 			items_grid.update_docfield_property('allocated_qty', 'read_only', 1);
 		} else {
 			frm.set_df_property('shipments', 'read_only', 0);
 			frm.set_df_property('excel_file', 'read_only', 0);
-			frm.set_df_property('sales_partner_filter', 'read_only', 0);
 			items_grid.update_docfield_property('allocated_qty', 'read_only', 0);
 		}
 
-		// Apply dynamic grid filter & render dashboard
+		// Apply filter & render dashboard
 		frm.trigger('apply_partner_filter');
 		frm.trigger('render_summary_dashboard');
 	},
 
-	sales_partner_filter: function(frm) {
-		frm.trigger('apply_partner_filter');
-	},
-
+	// ─────────────────────────────────────────────────────────────────
+	// apply_partner_filter – show / hide rows in the items grid
+	// ─────────────────────────────────────────────────────────────────
 	apply_partner_filter: function(frm) {
-		let filter_partner = frm.doc.sales_partner_filter;
 		let grid = frm.fields_dict['items'].grid;
-		
 		if (!grid || !grid.grid_rows) return;
-		
+
 		grid.grid_rows.forEach(row => {
-			if (!filter_partner || row.doc.sales_partner === filter_partner) {
+			if (!row.doc.sales_partner || frm.checked_partners.has(row.doc.sales_partner)) {
 				row.wrapper.show();
 			} else {
 				row.wrapper.hide();
@@ -119,210 +129,350 @@ frappe.ui.form.on('Team Leader Allocation Sheet', {
 		});
 	},
 
+	// ─────────────────────────────────────────────────────────────────
+	// render_summary_dashboard – full interactive HTML dashboard
+	// ─────────────────────────────────────────────────────────────────
 	render_summary_dashboard: function(frm) {
+
+		// Safe float helper (avoids dependency on missing flt global)
+		const _f = (v) => parseFloat(v) || 0;
+
+		// ── Empty state ──
 		if (!frm.doc.items || frm.doc.items.length === 0) {
 			frm.set_df_property('summary_html', 'options', `
-				<div style="padding: 20px; text-align: center; color: #888; font-style: italic; background: #f9f9f9; border-radius: 8px; border: 1px dashed #ddd;">
-					No partner allocation requests fetched yet. Click "Fetch Partner Requests" to load data.
+				<div style="padding:32px; text-align:center; background:#f9fafb; border-radius:12px; border:1px dashed #d1d5db;">
+					<div style="font-size:36px; margin-bottom:10px;">&#x1F4CB;</div>
+					<div style="font-size:15px; font-weight:700; color:#374151;">No Data Yet</div>
+					<div style="font-size:13px; color:#6b7280; margin-top:6px;">
+						Click <strong>Fetch Partner Requests</strong> to load partner allocation data.
+					</div>
 				</div>
 			`);
 			return;
 		}
 
-		// 1. Compute stats
-		let unique_partners = new Set();
-		let item_consolidated = {}; // item_code -> { item_name, total_qty, requested, allocated }
-
+		// ── 1. Gather unique partners ──
+		let all_partners = new Set();
 		frm.doc.items.forEach(item => {
-			if (item.sales_partner) {
-				unique_partners.add(item.sales_partner);
-			}
-			
+			if (item.sales_partner) all_partners.add(item.sales_partner);
+		});
+		let partners_array = Array.from(all_partners).sort();
+
+		// ── 2. Assign a unique colour to each partner ──
+		const PALETTE = ['#4f46e5','#0891b2','#059669','#d97706','#dc2626','#7c3aed','#db2777','#ea580c','#0f766e','#1d4ed8'];
+		let partner_color = {};
+		partners_array.forEach((p, i) => { partner_color[p] = PALETTE[i % PALETTE.length]; });
+
+		// ── 3. Build toggle pills ──
+		let partners_toggles = partners_array.map(p => {
+			let active = frm.checked_partners.has(p);
+			let bg     = active ? partner_color[p] : '#f3f4f6';
+			let fg     = active ? '#ffffff' : '#374151';
+			let border = active ? partner_color[p] : '#d1d5db';
+			let mark   = active ? '&#x2713; ' : '';
+			return `
+				<label class="partner-toggle-pill" data-partner="${p}"
+					style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;
+					background:${bg};color:${fg};border:1px solid ${border};
+					padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;
+					margin:4px;transition:all 0.18s;user-select:none;
+					box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+					<input type="checkbox" data-partner="${p}" ${active ? 'checked' : ''} style="display:none;">
+					<span>${mark}${p}</span>
+				</label>`;
+		}).join('');
+
+		// ── 4. Consolidated totals (only checked partners) ──
+		let consolidated = {};
+		frm.doc.items.forEach(item => {
+			if (!frm.checked_partners.has(item.sales_partner)) return;
 			let code = item.item_code;
-			if (!item_consolidated[code]) {
-				item_consolidated[code] = {
-					item_name: item.item_name || "",
-					shipment_qty: flt(item.total_qty),
-					requested_qty: 0.0,
-					allocated_qty: 0.0
+			if (!consolidated[code]) {
+				consolidated[code] = {
+					item_name:     item.item_name || '',
+					shipment_qty:  _f(item.total_qty),
+					requested_qty: 0,
+					allocated_qty: 0
 				};
 			}
-			item_consolidated[code].requested_qty += flt(item.allocation_request);
-			item_consolidated[code].allocated_qty += flt(item.allocated_qty);
+			consolidated[code].requested_qty += _f(item.allocation_request);
+			consolidated[code].allocated_qty += _f(item.allocated_qty);
 		});
 
-		let partners_list = Array.from(unique_partners);
-		let partners_badges = partners_list.map(p => `
-			<span style="display: inline-block; background: #eef2ff; color: #4f46e5; border: 1px solid #c7d2fe; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; margin: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-				${p}
-			</span>
-		`).join('');
+		let grand_ship  = 0, grand_req = 0, grand_alloc = 0;
+		let cons_rows = Object.entries(consolidated).map(([code, d]) => {
+			grand_ship  += d.shipment_qty;
+			grand_req   += d.requested_qty;
+			grand_alloc += d.allocated_qty;
+			let over_demand  = d.requested_qty > d.shipment_qty;
+			let over_alloc   = d.allocated_qty > d.shipment_qty;
+			let status_txt   = over_demand ? 'Over Demand' : 'OK';
+			let status_bg    = over_demand ? '#fef2f2' : '#ecfdf5';
+			let status_clr   = over_demand ? '#dc2626' : '#059669';
+			return `
+				<tr style="border-bottom:1px solid #f3f4f6;">
+					<td style="padding:10px 12px;font-weight:700;color:#1f2937;font-size:13px;">${code}</td>
+					<td style="padding:10px 12px;color:#374151;font-size:13px;">${d.item_name}</td>
+					<td style="padding:10px 12px;text-align:right;font-weight:700;color:#059669;">${d.shipment_qty.toFixed(0)}</td>
+					<td style="padding:10px 12px;text-align:right;font-weight:600;color:${over_demand ? '#dc2626' : '#1f2937'};">${d.requested_qty.toFixed(0)}</td>
+					<td style="padding:10px 12px;text-align:right;font-weight:700;color:${over_alloc ? '#d97706' : '#4f46e5'};">${d.allocated_qty.toFixed(0)}</td>
+					<td style="padding:10px 12px;text-align:center;">
+						<span style="background:${status_bg};color:${status_clr};padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;">${status_txt}</span>
+					</td>
+				</tr>`;
+		}).join('');
 
-		// Build table rows
-		let table_rows = "";
-		Object.keys(item_consolidated).forEach(code => {
-			let item = item_consolidated[code];
-			let is_excess = item.requested_qty > item.shipment_qty;
-			let is_allocated_excess = item.allocated_qty > item.shipment_qty;
-			
-			let status_badge = "";
-			if (is_excess) {
-				status_badge = `<span style="background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; display: inline-flex; align-items: center; gap: 4px; animation: pulse 2s infinite;">
-					⚠️ EXCESS REQUESTED
-				</span>`;
-			} else {
-				status_badge = `<span style="background: #ecfdf5; color: #059669; border: 1px solid #6ee7b7; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: bold;">
-					✓ OK
-				</span>`;
+		if (!cons_rows) {
+			cons_rows = `<tr><td colspan="6" style="padding:24px;text-align:center;color:#9ca3af;font-style:italic;">No partners selected. Toggle the pills above to compare demand.</td></tr>`;
+		}
+
+		// ── 5. Per-partner breakdown ──
+		let per_partner = {};
+		frm.doc.items.forEach(item => {
+			if (!frm.checked_partners.has(item.sales_partner)) return;
+			let p    = item.sales_partner;
+			let code = item.item_code;
+			if (!per_partner[p]) per_partner[p] = {};
+			if (!per_partner[p][code]) {
+				per_partner[p][code] = {
+					item_name:    item.item_name || '',
+					shipment_qty: _f(item.total_qty),
+					requested:    0,
+					allocated:    0
+				};
 			}
-
-			if (is_allocated_excess) {
-				status_badge += ` <span style="background: #fffbeb; color: #d97706; border: 1px solid #fcd34d; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; margin-left: 5px;">
-					⚠️ OVER-ALLOCATED
-				</span>`;
-			}
-
-			table_rows += `
-				<tr style="border-bottom: 1px solid #f3f4f6; transition: background 0.2s;">
-					<td style="padding: 12px; font-weight: 600; color: #1f2937;">${code}</td>
-					<td style="padding: 12px; color: #4b5563;">${item.item_name}</td>
-					<td style="padding: 12px; text-align: right; font-weight: 500; color: #059669;">${item.shipment_qty}</td>
-					<td style="padding: 12px; text-align: right; font-weight: 500; color: ${is_excess ? '#dc2626' : '#1f2937'};">${item.requested_qty}</td>
-					<td style="padding: 12px; text-align: right; font-weight: 600; color: ${is_allocated_excess ? '#d97706' : '#4f46e5'};">${item.allocated_qty}</td>
-					<td style="padding: 12px; text-align: center;">${status_badge}</td>
-				</tr>
-			`;
+			per_partner[p][code].requested += _f(item.allocation_request);
+			per_partner[p][code].allocated += _f(item.allocated_qty);
 		});
 
-		// Build overall CSS and layout
-		let dashboard_html = `
+		let per_partner_html = partners_array
+			.filter(p => per_partner[p])
+			.map(p => {
+				let color = partner_color[p];
+				let items_data = per_partner[p];
+				let tot_req   = Object.values(items_data).reduce((s, d) => s + d.requested, 0);
+				let tot_alloc = Object.values(items_data).reduce((s, d) => s + d.allocated, 0);
+
+				let rows = Object.entries(items_data).map(([code, d]) => {
+					let over = d.requested > d.shipment_qty;
+					return `
+						<tr style="border-bottom:1px solid #f3f4f6;">
+							<td style="padding:9px 12px;font-weight:700;color:#1f2937;font-size:12px;">${code}</td>
+							<td style="padding:9px 12px;color:#374151;font-size:12px;">${d.item_name}</td>
+							<td style="padding:9px 12px;text-align:right;color:#059669;font-weight:700;">${d.shipment_qty.toFixed(0)}</td>
+							<td style="padding:9px 12px;text-align:right;color:${over ? '#dc2626' : '#374151'};font-weight:600;">${d.requested.toFixed(0)}</td>
+							<td style="padding:9px 12px;text-align:right;color:#4f46e5;font-weight:700;">${d.allocated.toFixed(0)}</td>
+						</tr>`;
+				}).join('');
+
+				return `
+					<div style="margin-bottom:16px;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.05);">
+						<div style="background:${color};padding:12px 16px;display:flex;justify-content:space-between;align-items:center;">
+							<div style="color:#fff;font-weight:800;font-size:14px;">&#x1F91D; ${p}</div>
+							<div style="display:flex;gap:20px;">
+								<div style="font-size:12px;color:rgba(255,255,255,0.85);">Requested: <strong style="color:#fff;">${tot_req.toFixed(0)}</strong></div>
+								<div style="font-size:12px;color:rgba(255,255,255,0.85);">TL Quota: <strong style="color:#fff;">${tot_alloc.toFixed(0)}</strong></div>
+							</div>
+						</div>
+						<table style="width:100%;border-collapse:collapse;">
+							<thead>
+								<tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb;">
+									<th style="padding:8px 12px;text-align:left;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Item Code</th>
+									<th style="padding:8px 12px;text-align:left;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Item Name</th>
+									<th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Shipment Qty</th>
+									<th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Requested</th>
+									<th style="padding:8px 12px;text-align:right;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">TL Quota</th>
+								</tr>
+							</thead>
+							<tbody>${rows}</tbody>
+						</table>
+					</div>`;
+			}).join('');
+
+		if (!per_partner_html) {
+			per_partner_html = `<div style="padding:24px;text-align:center;color:#9ca3af;font-style:italic;">No partners selected.</div>`;
+		}
+
+		// ── 6. Assemble full dashboard HTML ──
+		let html = `
 			<style>
-				@keyframes pulse {
-					0% { opacity: 1; }
-					50% { opacity: 0.6; }
-					100% { opacity: 1; }
+				.partner-toggle-pill:hover { transform:scale(1.05); box-shadow:0 4px 10px rgba(0,0,0,0.14) !important; }
+				.partner-toggle-pill:active { transform:scale(0.97); }
+				.tl-tab-btn {
+					border:none; padding:8px 20px; border-radius:8px;
+					font-size:13px; font-weight:700; cursor:pointer; transition:all 0.18s;
 				}
-				.tl-card-stat {
-					background: #ffffff;
-					border: 1px solid #e5e7eb;
-					border-radius: 12px;
-					padding: 16px;
-					box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
-					flex: 1;
-					min-width: 220px;
-					transition: transform 0.2s, box-shadow 0.2s;
+				.tl-tab-btn.active { background:#4f46e5; color:#fff; box-shadow:0 2px 6px rgba(79,70,229,0.35); }
+				.tl-tab-btn:not(.active) { background:#f3f4f6; color:#374151; }
+				.tl-tab-btn:hover:not(.active) { background:#e5e7eb; }
+				.tl-cons-table th {
+					background:#f9fafb; color:#374151; font-weight:700; font-size:12px;
+					text-transform:uppercase; letter-spacing:0.05em;
+					padding:12px; border-bottom:2px solid #e5e7eb;
 				}
-				.tl-card-stat:hover {
-					transform: translateY(-2px);
-					box-shadow: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.05);
-				}
-				.tl-table th {
-					background: #f9fafb;
-					color: #374151;
-					font-weight: 600;
-					font-size: 12px;
-					text-transform: uppercase;
-					letter-spacing: 0.05em;
-					padding: 12px;
-					border-bottom: 2px solid #e5e7eb;
-				}
-				.tl-table tr:hover {
-					background: #f9fafb;
-				}
+				.tl-cons-table tr:hover { background:#fafafa; }
 			</style>
-			
-			<div style="font-family: inherit;">
-				<!-- Stats Row -->
-				<div style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px;">
-					
-					<!-- Card 1: Partners Count -->
-					<div class="tl-card-stat" style="border-left: 4px solid #4f46e5;">
-						<div style="font-size: 12px; color: #6b7280; font-weight: 600; text-transform: uppercase;">Submitted Partners</div>
-						<div style="font-size: 32px; font-weight: 800; color: #4f46e5; margin: 8px 0 4px 0; display: flex; align-items: center; gap: 8px;">
-							${partners_list.length}
-							<span style="font-size: 13px; font-weight: 500; color: #10b981; background: #ecfdf5; padding: 2px 8px; border-radius: 12px;">Active</span>
-						</div>
-						<div style="font-size: 12px; color: #9ca3af;">All pending partner sheets analyzed</div>
-					</div>
 
-					<!-- Card 2: Partners List -->
-					<div class="tl-card-stat" style="border-left: 4px solid #10b981; flex: 2;">
-						<div style="font-size: 12px; color: #6b7280; font-weight: 600; text-transform: uppercase;">Partners List</div>
-						<div style="margin-top: 10px; max-height: 70px; overflow-y: auto;">
-							${partners_badges || '<span style="color:#9ca3af; font-style:italic; font-size:13px;">No partners submitted yet</span>'}
+			<div style="font-family:inherit; padding:4px 0;">
+
+				<!-- Partner Pills Card -->
+				<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 2px 6px rgba(0,0,0,0.05);">
+					<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+						<div style="font-size:12px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">
+							&#x1F4CC; Select Partners to Compare
+						</div>
+						<div style="display:flex;gap:8px;align-items:center;">
+							<span style="font-size:12px;color:#4f46e5;font-weight:700;background:#eef2ff;padding:4px 12px;border-radius:8px;">
+								${frm.checked_partners.size} of ${partners_array.length} selected
+							</span>
+							<button class="btn-select-all-partners"
+								style="background:#ecfdf5;border:none;color:#059669;font-size:12px;font-weight:700;cursor:pointer;padding:5px 12px;border-radius:8px;">
+								&#x2713; Select All
+							</button>
+							<button class="btn-clear-all-partners"
+								style="background:#fef2f2;border:none;color:#dc2626;font-size:12px;font-weight:700;cursor:pointer;padding:5px 12px;border-radius:8px;">
+								&#x2715; Clear All
+							</button>
 						</div>
 					</div>
-
+					<div style="max-height:110px;overflow-y:auto;padding:2px 0;">
+						${partners_toggles || '<span style="color:#9ca3af;font-style:italic;font-size:13px;">No partners yet. Click <strong>Fetch Partner Requests</strong> first.</span>'}
+					</div>
 				</div>
 
-				<!-- Consolidated / Clubbed View Header -->
-				<div style="margin-top: 24px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
-					<h5 style="margin: 0; font-size: 14px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px;">
-						<span style="background: #4f46e5; width: 4px; height: 16px; display: inline-block; border-radius: 2px;"></span>
-						Consolidated Demand vs Shipment Capacity (Clubbed View)
-					</h5>
-					<span style="font-size: 12px; color: #6b7280; font-style: italic;">
-						Combined across all submitted partner requests
-					</span>
+				<!-- Grand Totals Row -->
+				<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+					<div style="flex:1;min-width:150px;background:#fff;border:1px solid #e5e7eb;border-left:4px solid #059669;border-radius:12px;padding:14px 16px;box-shadow:0 2px 4px rgba(0,0,0,0.04);">
+						<div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;">Shipment Capacity</div>
+						<div style="font-size:28px;font-weight:800;color:#059669;margin-top:4px;">${grand_ship.toFixed(0)}</div>
+						<div style="font-size:11px;color:#9ca3af;margin-top:2px;">Across selected partners</div>
+					</div>
+					<div style="flex:1;min-width:150px;background:#fff;border:1px solid #e5e7eb;border-left:4px solid ${grand_req > grand_ship ? '#dc2626' : '#f59e0b'};border-radius:12px;padding:14px 16px;box-shadow:0 2px 4px rgba(0,0,0,0.04);">
+						<div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;">Total Allocation Requested</div>
+						<div style="font-size:28px;font-weight:800;color:${grand_req > grand_ship ? '#dc2626' : '#1f2937'};margin-top:4px;">${grand_req.toFixed(0)}</div>
+						<div style="font-size:11px;color:#9ca3af;margin-top:2px;">${grand_req > grand_ship ? '&#x26A0;&#xFE0F; Exceeds capacity' : '&#x2713; Within capacity'}</div>
+					</div>
+					<div style="flex:1;min-width:150px;background:#fff;border:1px solid #e5e7eb;border-left:4px solid #4f46e5;border-radius:12px;padding:14px 16px;box-shadow:0 2px 4px rgba(0,0,0,0.04);">
+						<div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;">Total TL Quota Allocated</div>
+						<div style="font-size:28px;font-weight:800;color:#4f46e5;margin-top:4px;">${grand_alloc.toFixed(0)}</div>
+						<div style="font-size:11px;color:#9ca3af;margin-top:2px;">Across ${frm.checked_partners.size} partner(s)</div>
+					</div>
+					<div style="flex:1;min-width:150px;background:#fff;border:1px solid #e5e7eb;border-left:4px solid #d97706;border-radius:12px;padding:14px 16px;box-shadow:0 2px 4px rgba(0,0,0,0.04);">
+						<div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;">Partners Submitted</div>
+						<div style="font-size:28px;font-weight:800;color:#d97706;margin-top:4px;">${partners_array.length}</div>
+						<div style="font-size:11px;color:#9ca3af;margin-top:2px;">${frm.checked_partners.size} comparing now</div>
+					</div>
 				</div>
 
-				<!-- Consolidated Table -->
-				<div style="overflow-x: auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
-					<table class="tl-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+				<!-- Tab switcher -->
+				<div style="display:flex;gap:8px;margin-bottom:14px;">
+					<button class="tl-tab-btn active" data-tab="consolidated">&#x1F4CA; Consolidated View</button>
+					<button class="tl-tab-btn" data-tab="per-partner">&#x1F465; Per Partner View</button>
+				</div>
+
+				<!-- Consolidated Table Panel -->
+				<div class="tl-tab-panel" data-panel="consolidated"
+					style="overflow-x:auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,0.05);">
+					<table class="tl-cons-table" style="width:100%;border-collapse:collapse;font-size:13px;text-align:left;">
 						<thead>
 							<tr>
-								<th style="width: 15%; padding: 12px;">Item Code</th>
-								<th style="width: 25%; padding: 12px;">Item Name</th>
-								<th style="width: 15%; padding: 12px; text-align: right;">Shipment Capacity</th>
-								<th style="width: 15%; padding: 12px; text-align: right;">Total Requested</th>
-								<th style="width: 15%; padding: 12px; text-align: right;">Total Allocated (TL Quota)</th>
-								<th style="width: 15%; padding: 12px; text-align: center;">Status</th>
+								<th style="width:14%;padding:12px;">Item Code</th>
+								<th style="width:26%;padding:12px;">Item Name</th>
+								<th style="width:15%;padding:12px;text-align:right;">Shipment Capacity</th>
+								<th style="width:15%;padding:12px;text-align:right;">Total Requested</th>
+								<th style="width:15%;padding:12px;text-align:right;">Total TL Quota</th>
+								<th style="width:15%;padding:12px;text-align:center;">Status</th>
 							</tr>
 						</thead>
-						<tbody>
-							${table_rows}
-						</tbody>
+						<tbody>${cons_rows}</tbody>
 					</table>
 				</div>
-			</div>
-		`;
 
-		frm.set_df_property('summary_html', 'options', dashboard_html);
+				<!-- Per-Partner Panel (hidden by default) -->
+				<div class="tl-tab-panel" data-panel="per-partner" style="display:none;">
+					${per_partner_html}
+				</div>
+
+			</div>`;
+
+		frm.set_df_property('summary_html', 'options', html);
+
+		// ── 7. Attach interactive events after DOM paint ──
+		setTimeout(() => {
+			let $w = frm.fields_dict['summary_html'].$wrapper;
+			if (!$w || !$w.length) return;
+
+			// Toggle a partner pill
+			$w.off('click', '.partner-toggle-pill').on('click', '.partner-toggle-pill', function(e) {
+				e.preventDefault();
+				let p = $(this).attr('data-partner');
+				if (frm.checked_partners.has(p)) {
+					frm.checked_partners.delete(p);
+				} else {
+					frm.checked_partners.add(p);
+				}
+				frm.trigger('apply_partner_filter');
+				frm.trigger('render_summary_dashboard');
+			});
+
+			// Select All
+			$w.off('click', '.btn-select-all-partners').on('click', '.btn-select-all-partners', function(e) {
+				e.preventDefault();
+				partners_array.forEach(p => frm.checked_partners.add(p));
+				frm.trigger('apply_partner_filter');
+				frm.trigger('render_summary_dashboard');
+			});
+
+			// Clear All
+			$w.off('click', '.btn-clear-all-partners').on('click', '.btn-clear-all-partners', function(e) {
+				e.preventDefault();
+				frm.checked_partners.clear();
+				frm.trigger('apply_partner_filter');
+				frm.trigger('render_summary_dashboard');
+			});
+
+			// Tab switching
+			$w.off('click', '.tl-tab-btn').on('click', '.tl-tab-btn', function(e) {
+				e.preventDefault();
+				let tab = $(this).attr('data-tab');
+				$w.find('.tl-tab-btn').removeClass('active');
+				$(this).addClass('active');
+				$w.find('.tl-tab-panel').hide();
+				$w.find(`.tl-tab-panel[data-panel="${tab}"]`).show();
+			});
+
+		}, 150);
 	}
 });
 
-// Update summary html dynamically when a TL Quota is modified in the child table!
+// ── Re-render dashboard when TL Quota is edited inline ──
 frappe.ui.form.on('Team Leader Allocation Detail', {
-	allocated_qty: function(frm, cdt, cdn) {
+	allocated_qty: function(frm) {
 		frm.trigger('render_summary_dashboard');
 	},
-	items_add: function(frm, cdt, cdn) {
+	items_add: function(frm) {
 		frm.trigger('render_summary_dashboard');
 	},
-	items_remove: function(frm, cdt, cdn) {
+	items_remove: function(frm) {
 		frm.trigger('render_summary_dashboard');
 	}
 });
 
+// ── Auto-fill Supplier / ETD / ETA when a Shipment Tracker row is picked ──
 frappe.ui.form.on('Item Allocation Shipment', {
 	shipment_tracker: function(frm, cdt, cdn) {
 		let row = frappe.get_doc(cdt, cdn);
-		if (row.shipment_tracker) {
-			frappe.call({
-				method: 'frappe.client.get',
-				args: {
-					doctype: 'Shipment Tracker',
-					name: row.shipment_tracker
-				},
-				callback: function(r) {
-					if (r.message) {
-						// Auto-populate Supplier Name, ETD, ETA on child row
-						frappe.model.set_value(cdt, cdn, 'supplier', r.message.supplier);
-						frappe.model.set_value(cdt, cdn, 'etd', r.message.etd);
-						frappe.model.set_value(cdt, cdn, 'eta', r.message.eta);
-					}
+		if (!row.shipment_tracker) return;
+		frappe.call({
+			method: 'frappe.client.get',
+			args: { doctype: 'Shipment Tracker', name: row.shipment_tracker },
+			callback: function(r) {
+				if (r.message) {
+					frappe.model.set_value(cdt, cdn, 'supplier', r.message.supplier);
+					frappe.model.set_value(cdt, cdn, 'etd',      r.message.etd);
+					frappe.model.set_value(cdt, cdn, 'eta',      r.message.eta);
 				}
-			});
-		}
+			}
+		});
 	}
 });
