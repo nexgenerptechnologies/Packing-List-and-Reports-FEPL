@@ -1,4 +1,43 @@
 frappe.ui.form.on('Item Allocation Sheet', {
+	onload: function(frm) {
+		if (!frm.doc.sales_partner) {
+			frappe.call({
+				method: "frappe.client.get_value",
+				args: {
+					doctype: "Portal User",
+					filters: { user: frappe.session.user, parenttype: "Sales Partner" },
+					fieldname: "parent"
+				},
+				callback: function(r) {
+					if (r.message && r.message.parent) {
+						frm.set_value("sales_partner", r.message.parent);
+					} else {
+						frappe.call({
+							method: "frappe.client.get_value",
+							args: {
+								doctype: "Sales Partner",
+								filters: { name: frappe.session.user },
+								fieldname: "name"
+							},
+							callback: function(r2) {
+								if (r2.message && r2.message.name) {
+									frm.set_value("sales_partner", r2.message.name);
+								}
+							}
+						});
+					}
+				}
+			});
+		}
+	},
+	before_save: function(frm) {
+		if (frm.doc.sales_partner) {
+			frm.doc.items.forEach(row => {
+				row.sales_partner = frm.doc.sales_partner;
+			});
+			frm.refresh_field('items');
+		}
+	},
 	setup: function(frm) {
 		// Filter Sales Orders to only show pending orders for the selected customer
 		frm.set_query('sales_order', 'items', function(doc, cdt, cdn) {
@@ -115,22 +154,6 @@ frappe.ui.form.on('Item Allocation Sheet', {
 
 		let is_tl = frappe.user.has_role('System Manager') || frappe.user.has_role('Sales Manager');
 
-		if (frm.doc.status === 'Pending Team Leader' && frm.doc.docstatus === 0 && is_tl) {
-			frm.add_custom_button(__('Approve Quota'), function() {
-				frm.set_value('status', 'Pending Partner Finalization');
-				frm.save().then(() => {
-					frappe.msgprint(__('Quota approved and sent to Partner for finalization.'));
-					frm.reload_doc();
-				});
-			}).addClass('btn-primary');
-			frm.add_custom_button(__('Reject'), function() {
-				frm.set_value('status', 'Draft');
-				frm.save().then(() => {
-					frappe.msgprint(__('Allocation rejected and sent back to Draft.'));
-					frm.reload_doc();
-				});
-			}).addClass('btn-danger');
-		}
 
 		// 4. Role and Status Read Only Enforcements
 		if (frm.doc.status !== 'Draft') {
