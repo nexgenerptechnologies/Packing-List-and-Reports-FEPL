@@ -198,18 +198,17 @@ def upload_excel_data(docname):
 				sales_order = str(row[col_map.get("sales_order")] or "").strip() if "sales_order" in col_map else ""
 				allocation_req = flt(row[col_map["allocation_request"]]) if "allocation_request" in col_map else 0.0
 				
-				# 1. Strict Reconciliation: Verify against items in the selected Shipment Trackers
+				# 1. Reconciliation: Verify against items in the selected Shipment Trackers
 				matched_item = None
 				for s_item in shipment_items:
 					if normalize_str(s_item["item_code"]) == normalize_str(current_item_code):
-						if normalize_str(s_item["item_name"]) == normalize_str(current_item_name) and \
-						   normalize_str(s_item["description"]) == normalize_str(current_description):
-							matched_item = s_item
-							break
+						# We match primarily on item_code. This is robust and prevents failures due to minor name/description formatting.
+						matched_item = s_item
+						break
 							
 				if not matched_item:
-					frappe.throw(_("Row {0}: Item '{1}' (Name: '{2}', Desc: '{3}') does not strictly match any item in the selected Shipment Trackers.").format(
-						row_idx, current_item_code, current_item_name, current_description
+					frappe.throw(_("Row {0}: Item '{1}' does not match any item in the selected Shipment Trackers.").format(
+						row_idx, current_item_code
 					))
 					
 				excel_totals[current_item_code] = excel_totals.get(current_item_code, 0.0) + allocation_req

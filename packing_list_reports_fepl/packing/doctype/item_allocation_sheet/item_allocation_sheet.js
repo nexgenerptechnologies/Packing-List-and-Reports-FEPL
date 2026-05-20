@@ -81,10 +81,11 @@ frappe.ui.form.on('Item Allocation Sheet', {
 		// 2. Upload Excel Action
 		if (frm.doc.excel_file && frm.doc.docstatus === 0) {
 			frm.add_custom_button(__('Upload Excel Data'), function() {
-				frm.save().then(() => {
+				const perform_call = () => {
 					frappe.call({
 						method: 'packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.upload_excel_data',
 						args: { docname: frm.doc.name },
+						freeze: true,
 						callback: function(r) {
 							if (!r.exc) {
 								frappe.show_alert({message: __('Excel data loaded successfully.'), color: 'green'});
@@ -92,7 +93,12 @@ frappe.ui.form.on('Item Allocation Sheet', {
 							}
 						}
 					});
-				});
+				};
+				if (frm.is_dirty()) {
+					frm.save().then(perform_call);
+				} else {
+					perform_call();
+				}
 			}).addClass('btn-primary');
 		}
 
