@@ -33,8 +33,6 @@ def get_non_freight_qty(sales_invoice):
     return format_qty_with_pcs(non_freight_qty)
 
 class PackingListFormax(Document):
-    pass
-
     def validate(self):
         self.calculate_total_quantity()
         

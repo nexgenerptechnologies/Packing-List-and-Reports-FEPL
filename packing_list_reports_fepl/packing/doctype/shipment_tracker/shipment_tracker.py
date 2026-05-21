@@ -26,14 +26,15 @@ class ShipmentTracker(Document):
 			
 			# Check across other documents in the database
 			existing = frappe.db.sql("""
-				SELECT parent, bill_date 
-				FROM `tabShipment Item` 
-				WHERE LOWER(TRIM(supplier_invoice)) = %s 
-				  AND parent != %s 
-				  AND bill_date != %s
-				  AND docstatus < 2
+				SELECT child.parent, child.bill_date 
+				FROM `tabShipment Item` child
+				JOIN `tabShipment Tracker` parent ON child.parent = parent.name
+				WHERE LOWER(TRIM(child.supplier_invoice)) = %s 
+				  AND child.parent != %s 
+				  AND child.bill_date != %s
+				  AND parent.docstatus < 2
 				LIMIT 1
-			""", (inv, self.name, item.bill_date), as_dict=True)
+			""", (inv, self.name or '', item.bill_date), as_dict=True)
 			
 			if existing:
 				frappe.throw(
