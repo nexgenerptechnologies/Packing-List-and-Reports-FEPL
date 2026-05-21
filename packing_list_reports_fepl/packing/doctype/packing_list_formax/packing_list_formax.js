@@ -1,4 +1,21 @@
 frappe.ui.form.on('Packing List Formax', {
+    validate: function(frm) {
+        let total_items_qty = 0;
+        (frm.doc.items || []).forEach(item => {
+            total_items_qty += parseFloat(item.quantity || 0);
+        });
+        
+        let total_invoice_qty = parseFloat(frm.doc.total_invoice_qty || 0);
+        
+        if (Math.abs(total_items_qty - total_invoice_qty) > 0.0001) {
+            frappe.msgprint({
+                title: __('Validation Error'),
+                indicator: 'red',
+                message: __('Total Item Lines Quantity ({0}) must be equal to Total Invoice Qty ({1}) in Sales Invoice before saving.', [total_items_qty, total_invoice_qty])
+            });
+            frappe.validated = false;
+        }
+    },
     setup: function(frm) {
         // Set query for item_code to only show items from the selected Sales Invoice
         frm.set_query('item_code', 'items', function() {

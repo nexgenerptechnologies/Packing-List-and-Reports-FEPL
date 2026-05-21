@@ -14,7 +14,8 @@
   "total_invoice_qty",
   "total_boxes",
   "items_section",
-  "items"
+  "items",
+  "amended_from"
  ],
  "fields": [
   {
@@ -70,6 +71,15 @@
    "label": "Packing List Items",
    "options": "Packing List Formax Item",
    "reqd": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Packing List Formax",
+   "print_hide": 1,
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,

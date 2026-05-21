@@ -7,6 +7,13 @@ class PackingListFormax(Document):
 
     def validate(self):
         self.calculate_total_quantity()
+        
+        total_items_qty = sum(float(item.quantity or 0) for item in self.items)
+        if abs(total_items_qty - (self.total_invoice_qty or 0)) > 0.0001:
+            frappe.throw(
+                _("Total Item Lines Quantity ({0}) must be equal to Total Invoice Qty ({1}) in Sales Invoice '{2}' before saving.")
+                .format(total_items_qty, self.total_invoice_qty or 0, self.sales_invoice)
+            )
 
     def calculate_total_quantity(self):
         # We also ensure SI totals are synced on save just in case
@@ -123,7 +130,7 @@ def get_print_html(docname, print_type):
                 flex-direction: column;
             }
             .sticker-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-            .sticker-td { border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold; font-size: 12px; }
+            .sticker-td { border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold; font-size: 15px; }
             .header-text { font-size: 1.1em; font-weight: bold; text-align: center; border-bottom: 2px solid #000; margin-bottom: 10px; padding-bottom: 5px; white-space: nowrap; }
             .field-row { font-size: 0.9em; margin-bottom: 4px; }
             .field-tag { font-weight: bold; width: 80px; display: inline-block; }
@@ -147,7 +154,7 @@ def get_print_html(docname, print_type):
             num_stickers = int(math.ceil(total_qty / std_qty))
             
             html += f'<div style="margin-bottom: 20px;">'
-            html += f'<div style="font-weight:bold; background:#eee; padding:5px; border:1px solid #000;">Item: {item.item_name}</div>'
+            html += f'<div style="font-size:18px; font-weight:bold; background:#eee; padding:5px; border:1px solid #000;">Item: {item.item_name}</div>'
             html += '<table class="sticker-table"><tr>'
             for i in range(num_stickers):
                 html += f'<td class="sticker-td">{item.custom_cpn or ""}</td>'
