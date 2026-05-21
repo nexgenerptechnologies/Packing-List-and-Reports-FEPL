@@ -10,6 +10,37 @@ class ShipmentTracker(Document):
 			if not item.bill_date:
 				frappe.throw(_("Row {0}: Invoice Date is mandatory.").format(item.idx))
 
+		# Check within the document for conflicting Invoice Dates for the same Supplier Invoice #
+		invoice_dates = {}
+		for item in self.shipment_items:
+			if not item.supplier_invoice or not item.bill_date:
+				continue
+			inv = item.supplier_invoice.strip().lower()
+			date = str(item.bill_date)
+			if inv in invoice_dates and invoice_dates[inv] != date:
+				frappe.throw(
+					_("Supplier Invoice # '{0}' has conflicting Invoice Dates in this tracker ({1} vs {2}). All rows with the same invoice number must have the same date.")
+					.format(item.supplier_invoice, invoice_dates[inv], date)
+				)
+			invoice_dates[inv] = date
+			
+			# Check across other documents in the database
+			existing = frappe.db.sql("""
+				SELECT parent, bill_date 
+				FROM `tabShipment Item` 
+				WHERE LOWER(TRIM(supplier_invoice)) = %s 
+				  AND parent != %s 
+				  AND bill_date != %s
+				  AND docstatus < 2
+				LIMIT 1
+			""", (inv, self.name, item.bill_date), as_dict=True)
+			
+			if existing:
+				frappe.throw(
+					_("Supplier Invoice # '{0}' already exists in Shipment Tracker '{1}' with a different Invoice Date ({2}). The date must be {3}.")
+					.format(item.supplier_invoice, existing[0].parent, existing[0].bill_date, existing[0].bill_date)
+				)
+
 	def before_submit(self):
 		if not self.shipment_items or len(self.shipment_items) == 0:
 			frappe.throw(_("Please fetch or add items to the shipment before submitting."))

@@ -22,6 +22,67 @@ frappe.ui.form.on('Item Allocation Sheet', {
 							callback: function(r2) {
 								if (r2.message && r2.message.name) {
 									frm.set_value("sales_partner", r2.message.name);
+								} else {
+									// Search by sales_partner_name as fallback
+									frappe.call({
+										method: "frappe.client.get_value",
+										args: {
+											doctype: "Sales Partner",
+											filters: { sales_partner_name: frappe.session.user },
+											fieldname: "name"
+										},
+										callback: function(r3) {
+											if (r3.message && r3.message.name) {
+												frm.set_value("sales_partner", r3.message.name);
+											} else {
+												// Search by full_name fallback
+												frappe.call({
+													method: "frappe.client.get_value",
+													args: {
+														doctype: "User",
+														filters: { name: frappe.session.user },
+														fieldname: "full_name"
+													},
+													callback: function(r4) {
+														if (r4.message && r4.message.full_name) {
+															frappe.call({
+																method: "frappe.client.get_value",
+																args: {
+																	doctype: "Sales Partner",
+																	filters: { sales_partner_name: r4.message.full_name },
+																	fieldname: "name"
+																},
+																callback: function(r5) {
+																	if (r5.message && r5.message.name) {
+																		frm.set_value("sales_partner", r5.message.name);
+																	} else {
+																		let is_manager = frappe.user_roles.includes("System Manager") || frappe.user_roles.includes("Sales Manager") || frappe.session.user === "Administrator";
+																		if (!is_manager) {
+																			frappe.msgprint({
+																				title: __('Access Restriction'),
+																				indicator: 'red',
+																				message: __('Your user login "{0}" is not registered as a Sales Partner in the system. You will not be allowed to save or submit this sheet.', [frappe.session.user])
+																			frappe.validated = false;
+																			});
+																		}
+																	}
+																}
+															});
+														} else {
+															let is_manager = frappe.user_roles.includes("System Manager") || frappe.user_roles.includes("Sales Manager") || frappe.session.user === "Administrator";
+															if (!is_manager) {
+																frappe.msgprint({
+																	title: __('Access Restriction'),
+																	indicator: 'red',
+																	message: __('Your user login "{0}" is not registered as a Sales Partner in the system. You will not be allowed to save or submit this sheet.', [frappe.session.user])
+																});
+															}
+														}
+													}
+												});
+											}
+										}
+									});
 								}
 							}
 						});
@@ -36,6 +97,13 @@ frappe.ui.form.on('Item Allocation Sheet', {
 				row.sales_partner = frm.doc.sales_partner;
 			});
 			frm.refresh_field('items');
+		} else {
+			frappe.msgprint({
+				title: __('Validation Error'),
+				indicator: 'red',
+				message: __('Please select a Sales Partner before saving.')
+			});
+			frappe.validated = false;
 		}
 	},
 	setup: function(frm) {

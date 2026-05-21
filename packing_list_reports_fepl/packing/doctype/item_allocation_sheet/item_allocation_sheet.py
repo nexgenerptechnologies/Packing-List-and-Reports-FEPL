@@ -2,6 +2,27 @@ import frappe
 from frappe.model.document import Document
 from frappe import _
 
+def get_sales_partner_for_user(user):
+	# 1. Standard ERPNext mapping via Portal User child table
+	sp_name = frappe.db.get_value("Portal User", {"user": user, "parenttype": "Sales Partner"}, "parent")
+	if sp_name:
+		return sp_name
+	# 2. Check if Sales Partner ID (name) matches the user ID (email)
+	sp_name = frappe.db.get_value("Sales Partner", {"name": user}, "name")
+	if sp_name:
+		return sp_name
+	# 3. Check if Sales Partner Name matches the user ID (email)
+	sp_name = frappe.db.get_value("Sales Partner", {"sales_partner_name": user}, "name")
+	if sp_name:
+		return sp_name
+	# 4. Check if Sales Partner Name matches the user's full name
+	full_name = frappe.db.get_value("User", user, "full_name")
+	if full_name:
+		sp_name = frappe.db.get_value("Sales Partner", {"sales_partner_name": full_name}, "name")
+		if sp_name:
+			return sp_name
+	return None
+
 class ItemAllocationSheet(Document):
 	def onload(self):
 		ensure_custom_fields()
@@ -52,24 +73,18 @@ class ItemAllocationSheet(Document):
 					frappe.throw(_("Item {0}: Total Final Allocation ({1}) exceeds the Quota allocated by Team Leader ({2}).").format(item_code, final_sum, quota))
 
 	def before_save(self):
-		# Re-map sales partner based on user if not already set
-		if not self.sales_partner:
-			sp_name = None
-			try:
-				# Standard ERPNext mapping via Portal User child table
-				sp_name = frappe.db.get_value("Portal User", {"user": frappe.session.user, "parenttype": "Sales Partner"}, "parent")
-			except Exception:
-				pass
-				
-			if not sp_name:
-				try:
-					# Fallback: check if Sales Partner name matches the session user email
-					sp_name = frappe.db.get_value("Sales Partner", {"name": frappe.session.user}, "name")
-				except Exception:
-					pass
-					
-			if sp_name:
+		# Re-map sales partner based on user and check registration
+		is_manager = "System Manager" in frappe.get_roles() or "Sales Manager" in frappe.get_roles() or frappe.session.user == "Administrator"
+		sp_name = get_sales_partner_for_user(frappe.session.user)
+		
+		if sp_name:
+			if not is_manager or not self.sales_partner:
 				self.sales_partner = sp_name
+		elif not self.sales_partner:
+			if not is_manager:
+				frappe.throw(_("Your user login '{0}' is not registered as a Sales Partner in the system. Please register your user as a Sales Partner first.").format(frappe.session.user))
+			else:
+				frappe.throw(_("Please select a Sales Partner before saving."))
 				
 		# Calculate total allocation request per item code
 		item_totals = {}
