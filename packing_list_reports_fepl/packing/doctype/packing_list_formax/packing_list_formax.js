@@ -5,13 +5,17 @@ frappe.ui.form.on('Packing List Formax', {
             total_items_qty += parseFloat(item.quantity || 0);
         });
         
-        let total_invoice_qty = parseFloat(frm.doc.total_invoice_qty || 0);
+        let qty_str = String(frm.doc.total_invoice_qty || "0");
+        let cleaned_qty = parseFloat(qty_str.replace(/[^0-9.]/g, '')) || 0;
         
-        if (Math.abs(total_items_qty - total_invoice_qty) > 0.0001) {
+        if (Math.abs(total_items_qty - cleaned_qty) > 0.0001) {
+            let display_qty = Number.isInteger(total_items_qty) ? total_items_qty + " Pcs" : total_items_qty.toFixed(2) + " Pcs";
+            let display_target = qty_str.includes("Pcs") ? qty_str : qty_str + " Pcs";
+            
             frappe.msgprint({
                 title: __('Validation Error'),
                 indicator: 'red',
-                message: __('Total Item Lines Quantity ({0}) must be equal to Total Invoice Qty ({1}) in Sales Invoice before saving.', [total_items_qty, total_invoice_qty])
+                message: __('Total Item Lines Quantity ({0}) must be equal to Total Invoice Qty ({1}) in Sales Invoice before saving.', [display_qty, display_target])
             });
             frappe.validated = false;
         }
@@ -82,11 +86,20 @@ frappe.ui.form.on('Packing List Formax', {
     },
     sales_invoice: function(frm) {
         if (frm.doc.sales_invoice) {
-            frappe.db.get_value('Sales Invoice', frm.doc.sales_invoice, ['customer_name', 'posting_date', 'total_qty'], (r) => {
+            frappe.db.get_value('Sales Invoice', frm.doc.sales_invoice, ['customer_name', 'posting_date'], (r) => {
                 if (r) {
                     frm.set_value('customer_name', r.customer_name);
                     frm.set_value('sales_invoice_date', r.posting_date);
-                    frm.set_value('total_invoice_qty', r.total_qty);
+                }
+            });
+            
+            frappe.call({
+                method: 'packing_list_reports_fepl.packing.doctype.packing_list_formax.packing_list_formax.get_non_freight_qty',
+                args: { sales_invoice: frm.doc.sales_invoice },
+                callback: function(r) {
+                    if (r.message) {
+                        frm.set_value('total_invoice_qty', r.message);
+                    }
                 }
             });
             
@@ -100,7 +113,7 @@ frappe.ui.form.on('Packing List Formax', {
         } else {
             frm.set_value('customer_name', '');
             frm.set_value('sales_invoice_date', '');
-            frm.set_value('total_invoice_qty', 0);
+            frm.set_value('total_invoice_qty', '0 Pcs');
             frm.set_value('total_boxes', 0);
             frm.clear_table('items');
             frm.refresh_field('items');
@@ -117,9 +130,15 @@ frappe.ui.form.on('Packing List Formax', {
         frm.set_value('total_boxes', unique_boxes.size);
         
         // Ensure total_invoice_qty is synced if missing
-        if (!frm.doc.total_invoice_qty && frm.doc.sales_invoice) {
-            frappe.db.get_value('Sales Invoice', frm.doc.sales_invoice, 'total_qty', (r) => {
-                if (r) frm.set_value('total_invoice_qty', r.total_qty);
+        if ((!frm.doc.total_invoice_qty || frm.doc.total_invoice_qty === '0' || frm.doc.total_invoice_qty === '0 Pcs') && frm.doc.sales_invoice) {
+            frappe.call({
+                method: 'packing_list_reports_fepl.packing.doctype.packing_list_formax.packing_list_formax.get_non_freight_qty',
+                args: { sales_invoice: frm.doc.sales_invoice },
+                callback: function(r) {
+                    if (r.message) {
+                        frm.set_value('total_invoice_qty', r.message);
+                    }
+                }
             });
         }
     }

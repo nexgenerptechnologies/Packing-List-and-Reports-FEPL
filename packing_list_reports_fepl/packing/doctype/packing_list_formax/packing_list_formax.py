@@ -2,24 +2,59 @@ import frappe
 from frappe.model.document import Document
 from frappe import _
 
+def get_non_freight_si_qty(sales_invoice):
+    if not sales_invoice:
+        return 0.0
+    items = frappe.db.get_all('Sales Invoice Item',
+        filters={'parent': sales_invoice},
+        fields=['item_code', 'item_name', 'description', 'qty'])
+        
+    total_qty = 0.0
+    for item in items:
+        code = (item.item_code or "").strip().lower()
+        name = (item.item_name or "").strip().lower()
+        desc = (item.description or "").strip().lower()
+        
+        if code == "freight" or name == "freight" or desc == "freight":
+            continue
+        total_qty += float(item.qty or 0)
+        
+    return total_qty
+
+def format_qty_with_pcs(qty):
+    qty_float = float(qty or 0)
+    if qty_float == int(qty_float):
+        return f"{int(qty_float)} Pcs"
+    return f"{qty_float} Pcs"
+
+@frappe.whitelist()
+def get_non_freight_qty(sales_invoice):
+    non_freight_qty = get_non_freight_si_qty(sales_invoice)
+    return format_qty_with_pcs(non_freight_qty)
+
 class PackingListFormax(Document):
     pass
 
     def validate(self):
         self.calculate_total_quantity()
         
+        import re
         total_items_qty = sum(float(item.quantity or 0) for item in self.items)
-        if abs(total_items_qty - (self.total_invoice_qty or 0)) > 0.0001:
+        
+        qty_str = str(self.total_invoice_qty or "0")
+        cleaned_qty = re.sub(r'[^0-9.]', '', qty_str)
+        target_qty = float(cleaned_qty) if cleaned_qty else 0.0
+        
+        if abs(total_items_qty - target_qty) > 0.0001:
             frappe.throw(
                 _("Total Item Lines Quantity ({0}) must be equal to Total Invoice Qty ({1}) in Sales Invoice '{2}' before saving.")
-                .format(total_items_qty, self.total_invoice_qty or 0, self.sales_invoice)
+                .format(format_qty_with_pcs(total_items_qty), self.total_invoice_qty or "0 Pcs", self.sales_invoice)
             )
 
     def calculate_total_quantity(self):
         # We also ensure SI totals are synced on save just in case
-        si_totals = frappe.db.get_value('Sales Invoice', self.sales_invoice, ['total_qty'], as_dict=1)
-        if si_totals:
-            self.total_invoice_qty = si_totals.total_qty
+        non_freight_qty = get_non_freight_si_qty(self.sales_invoice)
+        self.total_invoice_qty = format_qty_with_pcs(non_freight_qty)
             
         unique_boxes = set()
         for item in self.items:
