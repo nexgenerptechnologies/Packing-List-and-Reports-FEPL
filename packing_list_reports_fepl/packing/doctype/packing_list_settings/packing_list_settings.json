@@ -10,7 +10,8 @@
   "enable_stock_sheet_formax",
   "enable_pending_so_report_formax",
   "enable_stock_ledger_formax",
-  "enable_po_line_numbering"
+  "enable_po_line_numbering",
+  "enable_get_specific_items"
  ],
  "fields": [
   {
@@ -54,6 +55,12 @@
    "fieldname": "enable_po_line_numbering",
    "fieldtype": "Check",
    "label": "Enable Purchase Order Line Numbering"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_get_specific_items",
+   "fieldtype": "Check",
+   "label": "Enable Get Specific Items in Purchase Receipt"
   }
  ],
  "index_web_pages_for_search": 1,

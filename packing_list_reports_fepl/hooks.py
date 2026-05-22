@@ -7,7 +7,8 @@ app_license = "mit"
 
 doctype_js = {
     "Sales Invoice": "public/js/sales_invoice.js",
-    "Delivery Note": "public/js/delivery_note.js"
+    "Delivery Note": "public/js/delivery_note.js",
+    "Purchase Receipt": "public/js/purchase_receipt.js"
 }
 
 doc_events = {
