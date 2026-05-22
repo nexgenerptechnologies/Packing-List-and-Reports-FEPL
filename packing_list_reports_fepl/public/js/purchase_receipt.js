@@ -20,6 +20,7 @@ frappe.ui.form.on('Purchase Receipt', {
 							// Create and display dialog
 							let dialog = new frappe.ui.Dialog({
 								title: __('Select Items from Purchase Order'),
+								size: 'large',
 								fields: [
 									{
 										fieldname: 'purchase_order',
