@@ -98,9 +98,17 @@ def distribute_tl_quotas(docname):
 	return "Quotas successfully approved and distributed to all Sales Partners."
 
 @frappe.whitelist()
-def get_item_spqs(docname):
-	doc = frappe.get_doc("Team Leader Allocation Sheet", docname)
-	item_codes = list(set([item.item_code for item in doc.items if item.item_code]))
+def get_item_spqs(docname, item_codes=None):
+	if item_codes:
+		if isinstance(item_codes, str):
+			import json
+			item_codes = json.loads(item_codes)
+	else:
+		if docname and not docname.startswith("new-team-leader-allocation-sheet-") and frappe.db.exists("Team Leader Allocation Sheet", docname):
+			doc = frappe.get_doc("Team Leader Allocation Sheet", docname)
+			item_codes = list(set([item.item_code for item in doc.items if item.item_code]))
+		else:
+			item_codes = []
 	spqs = {}
 	
 	# Defensive check: does the custom field exist on Item?

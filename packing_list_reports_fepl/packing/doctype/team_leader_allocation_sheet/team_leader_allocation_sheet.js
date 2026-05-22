@@ -141,10 +141,21 @@ function render_allocation_matrix(frm) {
 		return;
 	}
 
+	// Extract unique item codes to pass directly
+	let item_codes = [];
+	frm.doc.items.forEach(item => {
+		if (item.item_code && !item_codes.includes(item.item_code)) {
+			item_codes.push(item.item_code);
+		}
+	});
+
 	// Fetch SPQs from item master first
 	frappe.call({
 		method: 'packing_list_reports_fepl.packing.doctype.team_leader_allocation_sheet.team_leader_allocation_sheet.get_item_spqs',
-		args: { docname: frm.doc.name },
+		args: {
+			docname: frm.doc.name,
+			item_codes: item_codes
+		},
 		callback: function(r) {
 			let spq_cache = r.message || {};
 			build_matrix_html(frm, wrapper, spq_cache);
