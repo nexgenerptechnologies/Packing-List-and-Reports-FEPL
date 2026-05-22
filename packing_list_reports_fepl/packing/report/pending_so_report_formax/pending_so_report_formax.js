@@ -38,5 +38,16 @@ frappe.query_reports["Pending SO Report Formax"] = {
 			"fieldtype": "Link",
 			"options": "Sales Partner"
 		}
-	]
+	],
+	onload: function(report) {
+		frappe.db.get_single_value('Packing List Settings', 'enable_pending_so_report_formax').then(val => {
+			if (val === 0 || val === '0') {
+				frappe.msgprint({
+					title: __('Report Disabled'),
+					indicator: 'red',
+					message: __('Pending SO Report Formax is disabled. Click <a href=/app/packing-list-settings>here</a> to go to Settings and enable it.')
+				});
+			}
+		});
+	}
 };

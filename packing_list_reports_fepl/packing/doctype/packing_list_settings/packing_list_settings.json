@@ -4,7 +4,12 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "enable_item_allocation_sheet"
+  "enable_item_allocation_sheet",
+  "enable_shipment_tracker",
+  "enable_team_leader_allocation_sheet",
+  "enable_stock_sheet_formax",
+  "enable_pending_so_report_formax",
+  "enable_stock_ledger_formax"
  ],
  "fields": [
   {
@@ -12,6 +17,36 @@
    "fieldname": "enable_item_allocation_sheet",
    "fieldtype": "Check",
    "label": "Enable Item Allocation Sheet"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_shipment_tracker",
+   "fieldtype": "Check",
+   "label": "Enable Shipment Tracker"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_team_leader_allocation_sheet",
+   "fieldtype": "Check",
+   "label": "Enable Team Leader Allocation Sheet"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_stock_sheet_formax",
+   "fieldtype": "Check",
+   "label": "Enable Stock Sheet Formax"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_pending_so_report_formax",
+   "fieldtype": "Check",
+   "label": "Enable Pending SO Report Formax"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_stock_ledger_formax",
+   "fieldtype": "Check",
+   "label": "Enable Stock Ledger Formax"
   }
  ],
  "index_web_pages_for_search": 1,

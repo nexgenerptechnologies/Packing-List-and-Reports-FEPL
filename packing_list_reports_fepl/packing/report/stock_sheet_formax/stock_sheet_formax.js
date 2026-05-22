@@ -32,5 +32,16 @@ frappe.query_reports["Stock Sheet Formax"] = {
 			"fieldtype": "Link",
 			"options": "Item Group"
 		}
-	]
+	],
+	onload: function(report) {
+		frappe.db.get_single_value('Packing List Settings', 'enable_stock_sheet_formax').then(val => {
+			if (val === 0 || val === '0') {
+				frappe.msgprint({
+					title: __('Report Disabled'),
+					indicator: 'red',
+					message: __('Stock Sheet Formax is disabled. Click <a href=/app/packing-list-settings>here</a> to go to Settings and enable it.')
+				});
+			}
+		});
+	}
 };

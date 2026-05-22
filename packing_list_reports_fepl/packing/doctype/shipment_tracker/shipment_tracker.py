@@ -4,6 +4,8 @@ from frappe import _
 
 class ShipmentTracker(Document):
 	def validate(self):
+		if not frappe.db.get_single_value('Packing List Settings', 'enable_shipment_tracker'):
+			frappe.throw(_('Shipment Tracker is disabled in Packing List Settings.'))
 		for item in self.shipment_items:
 			if not item.supplier_invoice:
 				frappe.throw(_("Row {0}: Supplier Invoice # is mandatory.").format(item.idx))

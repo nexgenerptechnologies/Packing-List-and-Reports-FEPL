@@ -38,5 +38,16 @@ frappe.query_reports["Stock Ledger Formax"] = {
 			"fieldtype": "Select",
 			"options": "\nPurchase Receipt\nPurchase Invoice\nPurchase Order\nSales Invoice\nDelivery Note\nStock Entry\nMaterial Receipt"
 		}
-	]
+	],
+	onload: function(report) {
+		frappe.db.get_single_value('Packing List Settings', 'enable_stock_ledger_formax').then(val => {
+			if (val === 0 || val === '0') {
+				frappe.msgprint({
+					title: __('Report Disabled'),
+					indicator: 'red',
+					message: __('Stock Ledger Formax is disabled. Click <a href=/app/packing-list-settings>here</a> to go to Settings and enable it.')
+				});
+			}
+		});
+	}
 };

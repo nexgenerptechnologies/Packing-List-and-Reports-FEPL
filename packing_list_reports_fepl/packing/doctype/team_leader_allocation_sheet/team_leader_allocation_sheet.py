@@ -12,6 +12,8 @@ from io import BytesIO
 
 class TeamLeaderAllocationSheet(Document):
 	def validate(self):
+		if not frappe.db.get_single_value('Packing List Settings', 'enable_team_leader_allocation_sheet'):
+			frappe.throw(_('Team Leader Allocation Sheet is disabled in Packing List Settings.'))
 		# Group items by item_code and verify total allocated qty does not exceed shipment qty
 		items_by_code = {}
 		for item in self.items:

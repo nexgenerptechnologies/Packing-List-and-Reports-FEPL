@@ -41,6 +41,16 @@ frappe.ui.form.on('Shipment Tracker', {
 		}
 	},
 	refresh: function(frm) {
+		frappe.db.get_single_value('Packing List Settings', 'enable_shipment_tracker').then(val => {
+			if (val === 0 || val === '0') {
+				frappe.msgprint({
+					title: __('Feature Disabled'),
+					indicator: 'red',
+					message: __('Shipment Tracker is disabled. Click <a href=/app/packing-list-settings>here</a> to go to Settings and enable it.')
+				});
+				frm.disable_save();
+			}
+		});
 		frm.clear_custom_buttons();
 		
 		frm.add_custom_button(__('Download Template'), function() {

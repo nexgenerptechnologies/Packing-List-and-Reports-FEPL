@@ -10,6 +10,16 @@ frappe.ui.form.on('Team Leader Allocation Sheet', {
 	},
 
 	refresh: function(frm) {
+		frappe.db.get_single_value('Packing List Settings', 'enable_team_leader_allocation_sheet').then(val => {
+			if (val === 0 || val === '0') {
+				frappe.msgprint({
+					title: __('Feature Disabled'),
+					indicator: 'red',
+					message: __('Team Leader Allocation Sheet is disabled. Click <a href=/app/packing-list-settings>here</a> to go to Settings and enable it.')
+				});
+				frm.disable_save();
+			}
+		});
 		frm.clear_custom_buttons();
 
 		// Keep the dashboard section visible for our custom matrix grid

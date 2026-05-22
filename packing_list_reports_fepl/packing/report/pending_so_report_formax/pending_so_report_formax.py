@@ -2,6 +2,8 @@ import frappe
 from frappe import _
 
 def execute(filters=None):
+	if not frappe.db.get_single_value('Packing List Settings', 'enable_pending_so_report_formax'):
+		frappe.throw(_('Pending SO Report Formax is disabled in Packing List Settings.'))
 	if not filters:
 		filters = {}
 
