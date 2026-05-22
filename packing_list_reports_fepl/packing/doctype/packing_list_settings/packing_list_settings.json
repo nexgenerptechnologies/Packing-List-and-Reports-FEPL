@@ -9,7 +9,8 @@
   "enable_team_leader_allocation_sheet",
   "enable_stock_sheet_formax",
   "enable_pending_so_report_formax",
-  "enable_stock_ledger_formax"
+  "enable_stock_ledger_formax",
+  "enable_po_line_numbering"
  ],
  "fields": [
   {
@@ -47,6 +48,12 @@
    "fieldname": "enable_stock_ledger_formax",
    "fieldtype": "Check",
    "label": "Enable Stock Ledger Formax"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_po_line_numbering",
+   "fieldtype": "Check",
+   "label": "Enable Purchase Order Line Numbering"
   }
  ],
  "index_web_pages_for_search": 1,

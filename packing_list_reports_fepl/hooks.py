@@ -9,3 +9,9 @@ doctype_js = {
     "Sales Invoice": "public/js/sales_invoice.js",
     "Delivery Note": "public/js/delivery_note.js"
 }
+
+doc_events = {
+	"Purchase Order": {
+		"validate": "packing_list_reports_fepl.packing.doctype.packing_list_settings.packing_list_settings.update_po_line_numbers"
+	}
+}
