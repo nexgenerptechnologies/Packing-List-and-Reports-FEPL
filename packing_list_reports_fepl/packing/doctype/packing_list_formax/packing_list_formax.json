@@ -56,7 +56,7 @@
   },
   {
    "fieldname": "total_boxes",
-   "fieldtype": "Int",
+   "fieldtype": "Data",
    "label": "Total Boxes",
    "read_only": 1
   },
