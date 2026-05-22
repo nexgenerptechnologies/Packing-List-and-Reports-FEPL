@@ -89,36 +89,46 @@ class ShipmentTracker(Document):
 				po_line_number = po_item.get("custom_line_number") or str(po_item.idx)
 				
 				discrepancies = []
+
+				# Supplier Invoice Date Validation
+				from frappe.utils import getdate
+				po_date = frappe.db.get_value("Purchase Order", item.purchase_order, "transaction_date")
+				if po_date and item.bill_date:
+					if getdate(item.bill_date) < getdate(po_date):
+						discrepancies.append(_("Supplier Invoice Date ({0}) is before Purchase Order Date ({1})").format(item.bill_date, po_date))
+
+				# Item Code Match
 				if normalize_text(item.item_code) != normalize_text(po_item.item_code):
-					discrepancies.append(_("Item Code mismatch (Expected: '{0}', Got: '{1}')").format(po_item.item_code, item.item_code))
-				if item.item_name and po_item.item_name and normalize_text(item.item_name) != normalize_text(po_item.item_name):
-					discrepancies.append(_("Item Name mismatch (Expected: '{0}', Got: '{1}')").format(po_item.item_name, item.item_name))
-				if item.description and po_item.description and normalize_text(item.description) != normalize_text(po_item.description):
-					discrepancies.append(_("Description mismatch (Expected: '{0}', Got: '{1}')").format(po_item.description, item.description))
-				# Calculate total shipped qty in other submitted trackers
-				other_shipped = frappe.db.sql("""
-					SELECT SUM(qty)
-					FROM `tabShipment Item`
-					WHERE purchase_order_item = %s
-					  AND docstatus = 1
-					  AND parent != %s
-				""", (item.purchase_order_item, self.name))[0][0] or 0.0
+					discrepancies.append(_("Item Code mismatch (Expected: '{0}', Got: '{1}')").format(po_item.item_code or "", item.item_code or ""))
 				
-				pending_qty = max(0.0, min(po_item.qty - other_shipped, po_item.qty - po_item.received_qty))
+				# Item Name Match
+				if normalize_text(item.item_name) != normalize_text(po_item.item_name):
+					discrepancies.append(_("Item Name mismatch (Expected: '{0}', Got: '{1}')").format(po_item.item_name or "", item.item_name or ""))
 				
-				if item.qty > pending_qty:
-					discrepancies.append(_("Quantity exceeds pending amount (Pending: {0}, Got: {1})").format(pending_qty, item.qty))
-				if abs(float(item.rate) - float(po_item.rate)) > 0.01:
+				# Description Match
+				if normalize_text(item.description) != normalize_text(po_item.description):
+					discrepancies.append(_("Description mismatch (Expected: '{0}', Got: '{1}')").format(po_item.description or "", item.description or ""))
+				
+				# Quantity Match (Exact Match check)
+				if float(item.qty or 0) != float(po_item.qty or 0):
+					discrepancies.append(_("Quantity mismatch (Expected: {0}, Got: {1})").format(po_item.qty, item.qty))
+				
+				# Rate Match (Precision up to 0.000001)
+				if abs(float(item.rate or 0) - float(po_item.rate or 0)) > 0.000001:
 					discrepancies.append(_("Rate mismatch (Expected: {0}, Got: {1})").format(po_item.rate, item.rate))
 				
-				if item.line_number and normalize_text(item.line_number) != normalize_text(po_line_number):
-					discrepancies.append(_("Line Number mismatch (Expected: '{0}', Got: '{1}')").format(po_line_number, item.line_number))
+				# Line Number Match
+				if normalize_text(item.line_number) != normalize_text(po_line_number):
+					discrepancies.append(_("Line Number mismatch (Expected: '{0}', Got: '{1}')").format(po_line_number or "", item.line_number or ""))
 				
 				if discrepancies:
-					validation_errors.append(_("Row {0} (Item {1}):\n- {2}").format(item.idx, item.item_code, "\n- ".join(discrepancies)))
+					for discrepancy in discrepancies:
+						validation_errors.append(_("Row {0} (Item {1}): {2}").format(item.idx, item.item_code, discrepancy))
 					
 		if validation_errors:
-			frappe.throw(_("Validation failed for one or more items:\n\n{0}").format("\n\n".join(validation_errors)))
+			error_html = "<b>" + _("Validation failed for one or more items:") + "</b><br><br>"
+			error_html += "<br>".join([f"• {err}" for err in validation_errors])
+			frappe.throw(error_html)
 
 
 @frappe.whitelist()
