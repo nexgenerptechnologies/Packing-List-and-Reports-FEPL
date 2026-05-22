@@ -67,3 +67,71 @@ def get_po_items(purchase_order):
 			"line_number": ln_val or ""
 		})
 	return items
+
+@frappe.whitelist()
+def get_so_items(customer, sales_order=None, item_code=None, item_name=None, description=None):
+	if not frappe.db.get_single_value("Packing List Settings", "enable_get_specific_items_dn"):
+		frappe.throw("Get Specific Items for Delivery Note feature is disabled in Packing List Settings.")
+
+	if not customer:
+		frappe.throw("Customer is required.")
+
+	if not (sales_order or item_code or item_name or description):
+		return []
+
+	filters = {
+		"customer": customer,
+		"docstatus": 1,
+		"per_delivered": ["<", 100]
+	}
+	if sales_order:
+		filters["name"] = sales_order
+
+	sales_orders = frappe.get_all("Sales Order", filters=filters, fields=["name"], limit=100)
+	if not sales_orders:
+		return []
+
+	so_names = [so.name for so in sales_orders]
+
+	item_filters = {
+		"parent": ["in", so_names],
+		"docstatus": 1
+	}
+	if item_code:
+		item_filters["item_code"] = item_code
+
+	so_items = frappe.get_all(
+		"Sales Order Item",
+		filters=item_filters,
+		fields=[
+			"item_code", "item_name", "description", "qty", "delivered_qty", 
+			"stock_uom", "warehouse", "rate", "name as so_detail", "parent as sales_order"
+		]
+	)
+
+	all_items = []
+	for item in so_items:
+		if item_name and item_name.lower() not in (item.get("item_name") or "").lower():
+			continue
+		if description and description.lower() not in (item.get("description") or "").lower():
+			continue
+
+		qty = float(item.get("qty") or 0)
+		delivered_qty = float(item.get("delivered_qty") or 0)
+		qty_to_deliver = qty - delivered_qty
+		if qty_to_deliver > 0:
+			all_items.append({
+				"checked": False,
+				"item_code": item.item_code,
+				"item_name": item.item_name,
+				"description": item.description or "",
+				"qty_to_deliver": qty_to_deliver,
+				"delivered_qty": delivered_qty,
+				"uom": item.stock_uom or item.get("uom"),
+				"warehouse": item.warehouse,
+				"rate": item.rate,
+				"sales_order": item.sales_order,
+				"so_detail": item.so_detail
+			})
+
+	return all_items

@@ -11,7 +11,8 @@
   "enable_pending_so_report_formax",
   "enable_stock_ledger_formax",
   "enable_po_line_numbering",
-  "enable_get_specific_items"
+  "enable_get_specific_items",
+  "enable_get_specific_items_dn"
  ],
  "fields": [
   {
@@ -61,6 +62,12 @@
    "fieldname": "enable_get_specific_items",
    "fieldtype": "Check",
    "label": "Enable Get Specific Items in Purchase Receipt"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_get_specific_items_dn",
+   "fieldtype": "Check",
+   "label": "Enable Get Specific Items in Delivery Note"
   }
  ],
  "index_web_pages_for_search": 1,
