@@ -69,13 +69,6 @@ frappe.ui.form.on('Delivery Note', {
 										data: [],
 										fields: [
 											{
-												fieldname: 'checked',
-												label: '',
-												fieldtype: 'Check',
-												in_list_view: 1,
-												columns: 1
-											},
-											{
 												fieldname: 'item_code',
 												label: __('Item Code'),
 												fieldtype: 'Read Only',
@@ -149,7 +142,7 @@ frappe.ui.form.on('Delivery Note', {
 								],
 								primary_action_label: __('Add Selected Items'),
 								primary_action: function(values) {
-									let selected_items = main_dialog.fields_dict.items_grid.df.data.filter(item => item.checked || item.__checked);
+									let selected_items = main_dialog.fields_dict.items_grid.df.data.filter(item => item.__checked);
 									if (!selected_items.length) {
 										frappe.msgprint(__('Please select at least one item.'));
 										return;
