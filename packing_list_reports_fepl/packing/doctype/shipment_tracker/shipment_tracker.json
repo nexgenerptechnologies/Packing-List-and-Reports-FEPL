@@ -91,12 +91,14 @@
    "fieldname": "section_break_1",
    "fieldtype": "Section Break"
   },  {
+   "allow_on_submit": 1,
    "fieldname": "remarks",
    "fieldtype": "Small Text",
    "label": "Remarks Log",
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "add_remark",
    "fieldtype": "Small Text",
    "label": "Add Remark"
