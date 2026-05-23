@@ -1,4 +1,4 @@
-frappe.ui.form.on('Shipment Tracker', {
+﻿frappe.ui.form.on('Shipment Tracker', {
 	validate: function(frm) {
 		let missing = [];
 		let invoice_dates = {};
@@ -149,7 +149,7 @@ frappe.ui.form.on('Shipment Tracker', {
 				args: { docname: frm.doc.name },
 				callback: function(r) {
 					if (r.message && r.message.length > 0) {
-						let msg = r.message.join(", ") + " created successfully.";
+						let msg = __("Purchase Invoice {0} created successfully.", [r.message.join(", ")]);
 						frappe.msgprint({
 							title: __('Success'),
 							indicator: 'green',

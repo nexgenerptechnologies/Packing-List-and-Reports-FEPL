@@ -106,9 +106,19 @@ class ShipmentTracker(Document):
 				if normalize_text(item.description) != normalize_text(po_item.description):
 					discrepancies.append(_("Description mismatch (Expected: '{0}', Got: '{1}')").format(po_item.description or "", item.description or ""))
 				
-				# Quantity Match (Exact Match check)
-				if float(item.qty or 0) != float(po_item.qty or 0):
-					discrepancies.append(_("Quantity mismatch (Expected: {0}, Got: {1})").format(po_item.qty, item.qty))
+				# Quantity Match (Lesser than or equal to pending quantity is allowed, excess is blocked)
+				other_shipped = frappe.db.sql("""
+					SELECT SUM(qty)
+					FROM `tabShipment Item`
+					WHERE purchase_order_item = %s
+					  AND docstatus = 1
+					  AND parent != %s
+				""", (item.purchase_order_item, self.name or ""))[0][0] or 0.0
+				
+				pending_qty = max(0.0, min(po_item.qty - other_shipped, po_item.qty - po_item.received_qty))
+				
+				if float(item.qty or 0) > float(pending_qty):
+					discrepancies.append(_("Quantity exceeds pending amount (Pending: {0}, Got: {1})").format(pending_qty, item.qty))
 				
 				# Rate Match (Precision up to 0.000001)
 				if abs(float(item.rate or 0) - float(po_item.rate or 0)) > 0.000001:
