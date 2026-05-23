@@ -55,6 +55,8 @@ class ShipmentTracker(Document):
 			
 		validation_errors = []
 		
+		# First pass: Link missing PO items and accumulate quantities by PO Item
+		tracker_qty_totals = {}
 		for item in self.shipment_items:
 			if item.qty > 0:
 				if not item.purchase_order_item:
@@ -95,6 +97,13 @@ class ShipmentTracker(Document):
 						validation_errors.append(_("Row {0}: Could not find a matching Purchase Order for Line Number '{1}' and Item '{2}'.").format(item.idx, item.line_number, item.item_code))
 						continue
 				
+				if item.purchase_order_item:
+					tracker_qty_totals[item.purchase_order_item] = tracker_qty_totals.get(item.purchase_order_item, 0.0) + float(item.qty)
+					
+		# Second pass: Perform other validations and combined quantity validation
+		reported_po_qty_errors = set()
+		for item in self.shipment_items:
+			if item.qty > 0 and item.purchase_order_item:
 				try:
 					po_item = frappe.get_doc("Purchase Order Item", item.purchase_order_item)
 				except frappe.DoesNotExistError:
@@ -124,7 +133,7 @@ class ShipmentTracker(Document):
 				if normalize_text(item.description) != normalize_text(po_item.description):
 					discrepancies.append(_("Description mismatch (Expected: '{0}', Got: '{1}')").format(po_item.description or "", item.description or ""))
 				
-				# Quantity Match (Lesser than or equal to pending quantity is allowed, excess is blocked)
+				# Combined Quantity Match against PO Item's pending quantity
 				other_shipped = frappe.db.sql("""
 					SELECT SUM(qty)
 					FROM `tabShipment Item`
@@ -134,9 +143,12 @@ class ShipmentTracker(Document):
 				""", (item.purchase_order_item, self.name or ""))[0][0] or 0.0
 				
 				pending_qty = max(0.0, min(po_item.qty - other_shipped, po_item.qty - po_item.received_qty))
+				combined_qty = tracker_qty_totals.get(item.purchase_order_item, 0.0)
 				
-				if float(item.qty or 0) > float(pending_qty):
-					discrepancies.append(_("Quantity exceeds pending amount (Pending: {0}, Got: {1})").format(pending_qty, item.qty))
+				if float(combined_qty) > float(pending_qty):
+					if item.purchase_order_item not in reported_po_qty_errors:
+						discrepancies.append(_("Combined quantity ({0}) for this PO Item exceeds pending amount (Pending: {1}, Row Got: {2})").format(combined_qty, pending_qty, item.qty))
+						reported_po_qty_errors.add(item.purchase_order_item)
 				
 				# Rate Match (Precision up to 0.000001)
 				if abs(float(item.rate or 0) - float(po_item.rate or 0)) > 0.000001:
@@ -229,19 +241,34 @@ def make_purchase_receipt(docname):
 	target_doc.currency = currency
 	target_doc.conversion_rate = conversion_rate
 	
+	# Aggregate shipment tracker items by purchase_order_item
+	pr_items = {}
 	for item in source_doc.shipment_items:
 		if item.qty > 0:
-			po_item = frappe.get_doc("Purchase Order Item", item.purchase_order_item)
+			key = item.purchase_order_item
+			if key in pr_items:
+				pr_items[key]["qty"] += item.qty
+			else:
+				pr_items[key] = {
+					"item_code": item.item_code,
+					"qty": item.qty,
+					"rate": item.rate,
+					"purchase_order": item.purchase_order,
+					"purchase_order_item": item.purchase_order_item
+				}
+				
+	for item_data in pr_items.values():
+		po_item = frappe.get_doc("Purchase Order Item", item_data["purchase_order_item"])
 
-			pr_item = target_doc.append("items", {})
-			pr_item.item_code = item.item_code
-			pr_item.qty = item.qty
-			pr_item.rate = item.rate
-			pr_item.purchase_order = item.purchase_order
-			pr_item.purchase_order_item = item.purchase_order_item
-			pr_item.uom = po_item.uom
-			pr_item.stock_uom = po_item.stock_uom
-			pr_item.conversion_factor = po_item.conversion_factor
+		pr_item = target_doc.append("items", {})
+		pr_item.item_code = item_data["item_code"]
+		pr_item.qty = item_data["qty"]
+		pr_item.rate = item_data["rate"]
+		pr_item.purchase_order = item_data["purchase_order"]
+		pr_item.purchase_order_item = item_data["purchase_order_item"]
+		pr_item.uom = po_item.uom
+		pr_item.stock_uom = po_item.stock_uom
+		pr_item.conversion_factor = po_item.conversion_factor
 					
 	target_doc.insert()
 	return target_doc.name
@@ -267,8 +294,19 @@ def create_purchase_invoices(docname):
 		pi.bill_no = inv_no
 		pi.bill_date = items[0].bill_date or frappe.utils.nowdate()
 		
-		group_po_items = [it.purchase_order_item for it in items]
-		new_items = [pi_item for pi_item in pi.get("items") if pi_item.po_detail in group_po_items]
+		# Map purchase_order_item -> quantity for this supplier invoice group
+		qty_map = {it.purchase_order_item: it.qty for it in items if it.purchase_order_item}
+		
+		new_items = []
+		for pi_item in pi.get("items"):
+			if pi_item.po_detail in qty_map:
+				pi_item.qty = qty_map[pi_item.po_detail]
+				if pi_item.conversion_factor:
+					pi_item.stock_qty = pi_item.qty * pi_item.conversion_factor
+				else:
+					pi_item.stock_qty = pi_item.qty
+				new_items.append(pi_item)
+		
 		pi.set("items", new_items)
 		
 		if pi.get("items"):
