@@ -90,7 +90,8 @@
   {
    "fieldname": "section_break_1",
    "fieldtype": "Section Break"
-  },  {
+  },
+  {
    "allow_on_submit": 1,
    "fieldname": "remarks",
    "fieldtype": "Small Text",
@@ -111,13 +112,15 @@
   {
    "fieldname": "invoices_section",
    "fieldtype": "Section Break",
-   "label": "Supplier Invoices"
+   "label": "Supplier Invoices",
+   "hidden": 1
   },
   {
    "fieldname": "shipment_invoices",
    "fieldtype": "Table",
    "label": "Invoices",
-   "options": "Shipment Invoice"
+   "options": "Shipment Invoice",
+   "hidden": 1
   }
  ],
  "index_web_pages_for_search": 1,
