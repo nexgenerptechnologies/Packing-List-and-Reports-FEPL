@@ -18,6 +18,7 @@
   "excel_file",
   "section_break_1",
   "remarks",
+  "add_remark",
   "items_section",
   "shipment_items",
   "invoices_section",
@@ -89,11 +90,16 @@
   {
    "fieldname": "section_break_1",
    "fieldtype": "Section Break"
-  },
-  {
+  },  {
    "fieldname": "remarks",
    "fieldtype": "Small Text",
-   "label": "Remarks"
+   "label": "Remarks Log",
+   "read_only": 1
+  },
+  {
+   "fieldname": "add_remark",
+   "fieldtype": "Small Text",
+   "label": "Add Remark"
   },
   {
    "fieldname": "items_section",

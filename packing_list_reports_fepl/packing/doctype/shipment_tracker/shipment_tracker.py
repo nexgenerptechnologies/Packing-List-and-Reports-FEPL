@@ -4,6 +4,22 @@ from frappe import _
 
 class ShipmentTracker(Document):
 	def validate(self):
+		# Handle Remarks Log appending
+		if self.get("add_remark") and self.add_remark.strip():
+			from frappe.utils import format_datetime, now_datetime
+			
+			user_fullname = frappe.db.get_value("User", frappe.session.user, "full_name") or frappe.session.user
+			timestamp = format_datetime(now_datetime(), "dd-MM-yyyy hh:mm a")
+			
+			new_remark_entry = f"[{timestamp}] {user_fullname}:\n{self.add_remark.strip()}"
+			
+			if self.remarks:
+				self.remarks = f"{new_remark_entry}\n\n----------------------------------------\n\n{self.remarks}"
+			else:
+				self.remarks = new_remark_entry
+				
+			self.add_remark = ""
+
 		if not frappe.db.get_single_value('Packing List Settings', 'enable_shipment_tracker'):
 			frappe.throw(_('Shipment Tracker is disabled in Packing List Settings.'))
 		for item in self.shipment_items:
@@ -355,7 +371,11 @@ def fetch_from_excel(docname):
 			if "bill_date" in col_map:
 				raw_date = row[col_map["bill_date"]]
 				if isinstance(raw_date, (datetime.datetime, datetime.date)):
-					child.bill_date = raw_date.strftime("%Y-%m-%d")
+					# If both month and day are <= 12, Excel/openpyxl likely swapped them due to US locale parsing
+					if raw_date.day <= 12 and raw_date.month <= 12:
+						child.bill_date = f"{raw_date.year:04d}-{raw_date.day:02d}-{raw_date.month:02d}"
+					else:
+						child.bill_date = raw_date.strftime("%Y-%m-%d")
 				elif isinstance(raw_date, str):
 					val = raw_date.strip()
 					parsed = False
