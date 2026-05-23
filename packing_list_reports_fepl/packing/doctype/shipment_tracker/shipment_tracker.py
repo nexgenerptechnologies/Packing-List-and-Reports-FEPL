@@ -357,10 +357,21 @@ def fetch_from_excel(docname):
 				if isinstance(raw_date, (datetime.datetime, datetime.date)):
 					child.bill_date = raw_date.strftime("%Y-%m-%d")
 				elif isinstance(raw_date, str):
-					try:
-						child.bill_date = getdate(raw_date).strftime("%Y-%m-%d")
-					except:
-						pass
+					val = raw_date.strip()
+					parsed = False
+					for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%Y-%m-%d"):
+						try:
+							parsed_dt = datetime.datetime.strptime(val, fmt)
+							child.bill_date = parsed_dt.strftime("%Y-%m-%d")
+							parsed = True
+							break
+						except ValueError:
+							continue
+					if not parsed:
+						try:
+							child.bill_date = getdate(val).strftime("%Y-%m-%d")
+						except:
+							pass
 						
 		doc.save()
 		return "Success"
