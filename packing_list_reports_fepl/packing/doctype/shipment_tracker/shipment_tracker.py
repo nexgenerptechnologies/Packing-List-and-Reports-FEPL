@@ -365,5 +365,7 @@ def fetch_from_excel(docname):
 		doc.save()
 		return "Success"
 		
+	except frappe.ValidationError:
+		raise
 	except Exception as e:
 		frappe.throw(f"Failed to parse Excel: {str(e)}")
