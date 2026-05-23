@@ -4,22 +4,6 @@ from frappe import _
 
 class ShipmentTracker(Document):
 	def validate(self):
-		# Handle Remarks Log appending
-		if self.get("add_remark") and self.add_remark.strip():
-			from frappe.utils import format_datetime, now_datetime
-			
-			user_fullname = frappe.db.get_value("User", frappe.session.user, "full_name") or frappe.session.user
-			timestamp = format_datetime(now_datetime(), "dd-MM-yyyy hh:mm a")
-			
-			new_remark_entry = f"[{timestamp}] {user_fullname}:\n{self.add_remark.strip()}"
-			
-			if self.remarks:
-				self.remarks = f"{new_remark_entry}\n\n----------------------------------------\n\n{self.remarks}"
-			else:
-				self.remarks = new_remark_entry
-				
-			self.add_remark = ""
-
 		if not frappe.db.get_single_value('Packing List Settings', 'enable_shipment_tracker'):
 			frappe.throw(_('Shipment Tracker is disabled in Packing List Settings.'))
 		for item in self.shipment_items:
@@ -347,51 +331,78 @@ def fetch_from_excel(docname):
 			
 		doc.set("shipment_items", [])
 		
+		grouped_items = {}
+		
 		for row in sheet.iter_rows(min_row=2, values_only=True):
 			if not any(row): continue
 			
-			item_code = row[col_map.get("item_code")] if "item_code" in col_map else ""
+			item_code = str(row[col_map["item_code"]]).strip() if "item_code" in col_map and row[col_map["item_code"]] else ""
 			if not item_code: continue
 			
-			child = doc.append("shipment_items", {})
-			child.item_code = str(item_code).strip()
-			if "item_name" in col_map: child.item_name = str(row[col_map["item_name"]] or "").strip()
-			if "description" in col_map: child.description = str(row[col_map["description"]] or "").strip()
-			if "qty" in col_map: child.qty = flt(row[col_map["qty"]])
-			if "rate" in col_map: child.rate = flt(row[col_map["rate"]])
+			item_name = str(row[col_map["item_name"]]).strip() if "item_name" in col_map and row[col_map["item_name"]] else ""
+			description = str(row[col_map["description"]]).strip() if "description" in col_map and row[col_map["description"]] else ""
+			qty = flt(row[col_map["qty"]]) if "qty" in col_map else 0.0
+			rate = flt(row[col_map["rate"]]) if "rate" in col_map else 0.0
 			
-			if "line_number" in col_map:
-				lv = row[col_map["line_number"]]
-				child.line_number = str(lv).strip() if lv else ""
-				
-			if "supplier_invoice" in col_map:
-				sv = row[col_map["supplier_invoice"]]
-				child.supplier_invoice = str(sv).strip() if sv else ""
-				
+			line_number = str(row[col_map["line_number"]]).strip() if "line_number" in col_map and row[col_map["line_number"]] else ""
+			supplier_invoice = str(row[col_map["supplier_invoice"]]).strip() if "supplier_invoice" in col_map and row[col_map["supplier_invoice"]] else ""
+			
+			bill_date = None
 			if "bill_date" in col_map:
 				raw_date = row[col_map["bill_date"]]
 				if isinstance(raw_date, (datetime.datetime, datetime.date)):
 					# If both month and day are <= 12, Excel/openpyxl likely swapped them due to US locale parsing
 					if raw_date.day <= 12 and raw_date.month <= 12:
-						child.bill_date = f"{raw_date.year:04d}-{raw_date.day:02d}-{raw_date.month:02d}"
+						bill_date = f"{raw_date.year:04d}-{raw_date.day:02d}-{raw_date.month:02d}"
 					else:
-						child.bill_date = raw_date.strftime("%Y-%m-%d")
+						bill_date = raw_date.strftime("%Y-%m-%d")
 				elif isinstance(raw_date, str):
 					val = raw_date.strip()
 					parsed = False
 					for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%Y-%m-%d"):
 						try:
 							parsed_dt = datetime.datetime.strptime(val, fmt)
-							child.bill_date = parsed_dt.strftime("%Y-%m-%d")
+							bill_date = parsed_dt.strftime("%Y-%m-%d")
 							parsed = True
 							break
 						except ValueError:
 							continue
 					if not parsed:
 						try:
-							child.bill_date = getdate(val).strftime("%Y-%m-%d")
+							bill_date = getdate(val).strftime("%Y-%m-%d")
 						except:
 							pass
+			
+			# Grouping Key (Club only if item, line number, and supplier invoice are exactly the same)
+			key = (item_code.lower(), line_number.lower(), supplier_invoice.lower())
+			
+			if key in grouped_items:
+				grouped_items[key]["qty"] += qty
+				if not grouped_items[key]["bill_date"] and bill_date:
+					grouped_items[key]["bill_date"] = bill_date
+			else:
+				grouped_items[key] = {
+					"item_code": item_code,
+					"item_name": item_name,
+					"description": description,
+					"qty": qty,
+					"rate": rate,
+					"line_number": line_number,
+					"supplier_invoice": supplier_invoice,
+					"bill_date": bill_date
+				}
+				
+		# Append the aggregated items to the document
+		for item_data in grouped_items.values():
+			child = doc.append("shipment_items", {})
+			child.item_code = item_data["item_code"]
+			child.item_name = item_data["item_name"]
+			child.description = item_data["description"]
+			child.qty = item_data["qty"]
+			child.rate = item_data["rate"]
+			child.line_number = item_data["line_number"]
+			child.supplier_invoice = item_data["supplier_invoice"]
+			child.bill_date = item_data["bill_date"]
 						
 		doc.save()
 		return "Success"
@@ -400,3 +411,24 @@ def fetch_from_excel(docname):
 		raise
 	except Exception as e:
 		frappe.throw(f"Failed to parse Excel: {str(e)}")
+
+@frappe.whitelist()
+def add_shipment_remark(docname, remark):
+	if not remark or not remark.strip():
+		return
+		
+	doc = frappe.get_doc("Shipment Tracker", docname)
+	
+	from frappe.utils import format_datetime, now_datetime
+	user_fullname = frappe.db.get_value("User", frappe.session.user, "full_name") or frappe.session.user
+	timestamp = format_datetime(now_datetime(), "dd-MM-yyyy hh:mm a")
+	
+	new_remark_entry = f"[{timestamp}] {user_fullname}:\n{remark.strip()}"
+	
+	if doc.remarks:
+		doc.remarks = f"{new_remark_entry}\n\n----------------------------------------\n\n{doc.remarks}"
+	else:
+		doc.remarks = new_remark_entry
+		
+	doc.db_set("remarks", doc.remarks)
+	return "Success"

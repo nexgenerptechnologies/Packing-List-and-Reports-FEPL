@@ -97,6 +97,38 @@
 				}
 			});
 		}
+
+		frm.add_custom_button(__('Add Remark'), function() {
+			let d = new frappe.ui.Dialog({
+				title: __('Add Remark to Shipment Tracker'),
+				fields: [
+					{
+						label: __('New Remark'),
+						fieldname: 'new_remark',
+						fieldtype: 'Small Text',
+						reqd: 1
+					}
+				],
+				primary_action_label: __('Add'),
+				primary_action(values) {
+					frappe.call({
+						method: 'packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.add_shipment_remark',
+						args: {
+							docname: frm.doc.name,
+							remark: values.new_remark
+						},
+						callback: function(r) {
+							if (!r.exc) {
+								frappe.show_alert({message: __('Remark added successfully.'), color: 'green'});
+								frm.reload_doc();
+								d.hide();
+							}
+						}
+					});
+				}
+			});
+			d.show();
+		});
 	},
 	fetch_pending_items: function(frm) {
 		let pos = frm.doc.shipment_pos.map(d => d.purchase_order);
