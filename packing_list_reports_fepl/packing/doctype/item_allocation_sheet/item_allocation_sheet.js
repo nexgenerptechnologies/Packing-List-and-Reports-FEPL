@@ -62,8 +62,8 @@ frappe.ui.form.on('Item Allocation Sheet', {
 																				title: __('Access Restriction'),
 																				indicator: 'red',
 																				message: __('Your user login "{0}" is not registered as a Sales Partner in the system. You will not be allowed to save or submit this sheet.', [frappe.session.user])
-																			frappe.validated = false;
-																			});
+											});
+											frappe.validated = false;
 																		}
 																	}
 																}
