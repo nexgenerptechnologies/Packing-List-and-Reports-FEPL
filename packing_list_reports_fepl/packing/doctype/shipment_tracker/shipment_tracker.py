@@ -62,13 +62,31 @@ class ShipmentTracker(Document):
 						validation_errors.append(_("Row {0}: Item {1} is missing both Purchase Order Item and Line Number. Cannot auto-link.").format(item.idx, item.item_code))
 						continue
 					
-					# Auto-link based on custom_line_number, line_number, and supplier
-					po_items = frappe.db.sql("""
+					# Auto-link based on available line number fields on Purchase Order Item
+					po_item_meta = frappe.get_meta("Purchase Order Item")
+					where_clauses = []
+					query_args = []
+					
+					if po_item_meta.has_field("custom_line_number"):
+						where_clauses.append("poi.custom_line_number = %s")
+						query_args.append(item.line_number)
+					if po_item_meta.has_field("line_number"):
+						where_clauses.append("poi.line_number = %s")
+						query_args.append(item.line_number)
+						
+					if not where_clauses:
+						where_clauses.append("poi.idx = %s")
+						query_args.append(item.line_number)
+						
+					where_cond = " OR ".join(where_clauses)
+					query_args.extend([item.item_code, self.supplier])
+					
+					po_items = frappe.db.sql(f"""
 						SELECT poi.name, poi.parent 
 						FROM `tabPurchase Order Item` poi
 						JOIN `tabPurchase Order` po ON poi.parent = po.name
-						WHERE (poi.custom_line_number = %s OR poi.line_number = %s) AND poi.item_code = %s AND po.supplier = %s AND po.docstatus = 1
-					""", (item.line_number, item.line_number, item.item_code, self.supplier), as_dict=1)
+						WHERE ({where_cond}) AND poi.item_code = %s AND po.supplier = %s AND po.docstatus = 1
+					""", tuple(query_args), as_dict=1)
 					
 					if po_items:
 						item.purchase_order = po_items[0].parent
