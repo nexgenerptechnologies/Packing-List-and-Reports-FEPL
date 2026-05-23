@@ -44,10 +44,7 @@ class ShipmentTracker(Document):
 					.format(item.supplier_invoice, existing[0].parent, existing[0].bill_date, existing[0].bill_date)
 				)
 
-	def before_submit(self):
-		if not self.shipment_items or len(self.shipment_items) == 0:
-			frappe.throw(_("Please fetch or add items to the shipment before submitting."))
-			
+		# Detailed line-item strict validation on Save
 		import re
 		from frappe.utils import strip_html
 		def normalize_text(text):
@@ -65,13 +62,13 @@ class ShipmentTracker(Document):
 						validation_errors.append(_("Row {0}: Item {1} is missing both Purchase Order Item and Line Number. Cannot auto-link.").format(item.idx, item.item_code))
 						continue
 					
-					# Auto-link based on custom_line_number and supplier
+					# Auto-link based on custom_line_number, line_number, and supplier
 					po_items = frappe.db.sql("""
 						SELECT poi.name, poi.parent 
 						FROM `tabPurchase Order Item` poi
 						JOIN `tabPurchase Order` po ON poi.parent = po.name
-						WHERE poi.custom_line_number = %s AND poi.item_code = %s AND po.supplier = %s AND po.docstatus = 1
-					""", (item.line_number, item.item_code, self.supplier), as_dict=1)
+						WHERE (poi.custom_line_number = %s OR poi.line_number = %s) AND poi.item_code = %s AND po.supplier = %s AND po.docstatus = 1
+					""", (item.line_number, item.line_number, item.item_code, self.supplier), as_dict=1)
 					
 					if po_items:
 						item.purchase_order = po_items[0].parent
@@ -86,7 +83,7 @@ class ShipmentTracker(Document):
 					validation_errors.append(_("Row {0}: Purchase Order Item {1} does not exist.").format(item.idx, item.purchase_order_item))
 					continue
 					
-				po_line_number = po_item.get("custom_line_number") or str(po_item.idx)
+				po_line_number = po_item.get("custom_line_number") or po_item.get("line_number") or str(po_item.idx)
 				
 				discrepancies = []
 
@@ -127,10 +124,12 @@ class ShipmentTracker(Document):
 					
 		if validation_errors:
 			error_html = "<b>" + _("Validation failed for one or more items:") + "</b><br><br>"
-			error_html += "<br>".join([f"• {err}" for err in validation_errors])
+			error_html += "<br>".join([f"\u2022 {err}" for err in validation_errors])
 			frappe.throw(error_html)
 
-
+	def before_submit(self):
+		if not self.shipment_items or len(self.shipment_items) == 0:
+			frappe.throw(_("Please fetch or add items to the shipment before submitting."))
 @frappe.whitelist()
 def download_template():
 	import openpyxl
