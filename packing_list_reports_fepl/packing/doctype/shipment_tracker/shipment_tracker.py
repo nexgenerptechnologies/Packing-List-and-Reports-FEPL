@@ -100,6 +100,15 @@ class ShipmentTracker(Document):
 				if item.purchase_order_item:
 					tracker_qty_totals[item.purchase_order_item] = tracker_qty_totals.get(item.purchase_order_item, 0.0) + float(item.qty)
 					
+		# Ensure parent currency matches the linked Purchase Order currency
+		if self.shipment_items:
+			for item in self.shipment_items:
+				if item.purchase_order:
+					po_currency = frappe.db.get_value("Purchase Order", item.purchase_order, "currency")
+					if po_currency:
+						self.currency = po_currency
+						break
+					
 		# Second pass: Perform other validations and combined quantity validation
 		reported_po_qty_errors = set()
 		for item in self.shipment_items:
