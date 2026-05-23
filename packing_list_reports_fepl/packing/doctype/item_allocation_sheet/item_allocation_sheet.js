@@ -229,6 +229,13 @@ frappe.ui.form.on('Item Allocation Sheet', {
 		} else {
 			frm.set_df_property('shipments', 'read_only', 0);
 		}
+
+		let is_manager = frappe.user.has_role('System Manager') || frappe.user.has_role('Sales Manager') || frappe.session.user === 'Administrator';
+		if (is_manager && frm.doc.status === 'Draft') {
+			frm.set_df_property('sales_partner', 'read_only', 0);
+		} else {
+			frm.set_df_property('sales_partner', 'read_only', 1);
+		}
 		
 		let items_grid = frm.fields_dict['items'].grid;
 		
