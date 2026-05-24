@@ -172,7 +172,7 @@ frappe.ui.form.on('Item Allocation Sheet', {
 			frm.set_df_property('shipments', 'read_only', 0);
 		}
 
-		let is_manager = frappe.user.has_role('System Manager') || frappe.user.has_role('Sales Manager') || frappe.session.user === 'Administrator';
+		is_manager = frappe.user.has_role('System Manager') || frappe.user.has_role('Sales Manager') || frappe.session.user === 'Administrator';
 		if (frm.doc.status === 'Draft' && (is_manager || !frm.doc.sales_partner)) {
 			frm.set_df_property('sales_partner', 'read_only', 0);
 		} else {
