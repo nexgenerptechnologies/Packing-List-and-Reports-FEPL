@@ -223,6 +223,7 @@ def upload_excel_data(docname):
 		if doc.status == "Draft":
 			doc.set("items", [])
 			excel_totals = {}
+			excel_rows = {}
 			parsed_rows = []
 			row_idx = 1
 			
@@ -263,6 +264,9 @@ def upload_excel_data(docname):
 					))
 					
 				excel_totals[current_item_code] = excel_totals.get(current_item_code, 0.0) + allocation_req
+				if current_item_code not in excel_rows:
+					excel_rows[current_item_code] = []
+				excel_rows[current_item_code].append(row_idx)
 				
 				parsed_rows.append({
 					"item_code": current_item_code,
@@ -279,8 +283,13 @@ def upload_excel_data(docname):
 			for item_code, total_req in excel_totals.items():
 				ship_qty = sum(item["qty"] for item in shipment_items if normalize_str(item["item_code"]) == normalize_str(item_code))
 				if total_req > ship_qty:
-					frappe.throw(_("Row {0} / Item Code '{1}': Total Allocation Request ({2}) exceeds the Shipment Quantity ({3})!").format(
-						row_idx, item_code, total_req, ship_qty
+					rows_list = excel_rows.get(item_code, [])
+					if len(rows_list) == 1:
+						row_label = f"Row {rows_list[0]}"
+					else:
+						row_label = f"Rows {', '.join(str(r) for r in rows_list)}"
+					frappe.throw(_("{0} / Item Code '{1}': Total Allocation Request ({2}) exceeds the Shipment Quantity ({3})!").format(
+						row_label, item_code, total_req, ship_qty
 					))
 					
 			# Append clean child rows
