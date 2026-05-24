@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 # Copyright (c) 2026, Administrator and contributors
 # For license information, please see license.txt
 
@@ -9,6 +9,50 @@ from frappe import _
 from frappe.utils import flt
 import openpyxl
 from io import BytesIO
+
+def normalize_str(val):
+	if val is None:
+		return ""
+	val_str = str(val).strip()
+	if val_str.endswith(".0"):
+		val_str = val_str[:-2]
+	return val_str.lower().replace(" ", "").replace("-", "").replace("_", "")
+
+def customers_match(c1, c2):
+	if not c1 and not c2:
+		return True
+	if not c1 or not c2:
+		return False
+	
+	n1 = normalize_str(c1)
+	n2 = normalize_str(c2)
+	if n1 == n2:
+		return True
+		
+	# Resolve both to customer_name for standard comparison if one is primary key ID and other is display name
+	if frappe.get_meta("Customer").has_field("customer_name"):
+		name1 = frappe.db.get_value("Customer", c1, "customer_name") or c1
+		name2 = frappe.db.get_value("Customer", c2, "customer_name") or c2
+		return normalize_str(name1) == normalize_str(name2)
+	return False
+
+def partners_match(p1, p2):
+	if not p1 and not p2:
+		return True
+	if not p1 or not p2:
+		return False
+	
+	n1 = normalize_str(p1)
+	n2 = normalize_str(p2)
+	if n1 == n2:
+		return True
+		
+	# Resolve both to sales_partner_name for standard comparison if one is primary key ID and other is display name
+	if frappe.get_meta("Sales Partner").has_field("sales_partner_name"):
+		name1 = frappe.db.get_value("Sales Partner", p1, "sales_partner_name") or p1
+		name2 = frappe.db.get_value("Sales Partner", p2, "sales_partner_name") or p2
+		return normalize_str(name1) == normalize_str(name2)
+	return False
 
 class TeamLeaderAllocationSheet(Document):
 	def validate(self):
@@ -207,17 +251,25 @@ def download_tl_template(docname=None):
 	ws = wb.active
 	ws.title = "TL Quota Allocation"
 	
+	# Get human-readable partner display names for columns
+	partner_display_names = {}
+	for p in all_partners:
+		p_name = frappe.db.get_value("Sales Partner", p, "sales_partner_name") or p
+		partner_display_names[p] = p_name
+		
 	headers = ["Item Code", "Customer Name", "Item Name", "Description", "Shipment Qty", "SPQ"]
 	for p in all_partners:
-		headers.append(p)
+		headers.append(partner_display_names[p])
 	headers.extend(["Total Allocation Request", "Total TL Quota"])
 	
 	ws.append(headers)
 	
 	for key, details in items_by_code.items():
+		cust_id = details["customer"]
+		cust_display = frappe.db.get_value("Customer", cust_id, "customer_name") or cust_id or ""
 		row_data = [
 			details["item_code"],
-			details["customer"],
+			cust_display,
 			details["item_name"],
 			details["description"],
 			details["total_qty"],
@@ -303,14 +355,6 @@ def upload_tl_excel(docname):
 	if not partner_cols:
 		frappe.throw(_("Excel sheet does not contain any Sales Partner columns."))
 		
-	def normalize_str(val):
-		if val is None:
-			return ""
-		val_str = str(val).strip()
-		if val_str.endswith(".0"):
-			val_str = val_str[:-2]
-		return val_str.lower().replace(" ", "").replace("-", "").replace("_", "")
-
 	updated_count = 0
 	for row in rows[1:]:
 		item_code = str(row[item_code_idx] or "").strip()
@@ -333,8 +377,8 @@ def upload_tl_excel(docname):
 			matching_children = []
 			for child in doc.items:
 				if (normalize_str(child.item_code) == normalize_str(item_code) and
-					normalize_str(child.sales_partner) == normalize_str(partner_name) and
-					normalize_str(child.customer) == normalize_str(row_cust)):
+					partners_match(child.sales_partner, partner_name) and
+					customers_match(child.customer, row_cust)):
 					matching_children.append(child)
 					
 			if len(matching_children) == 1:
