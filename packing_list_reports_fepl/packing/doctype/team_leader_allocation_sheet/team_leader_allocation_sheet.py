@@ -14,24 +14,37 @@ class TeamLeaderAllocationSheet(Document):
 	def validate(self):
 		if not frappe.db.get_single_value('Packing List Settings', 'enable_team_leader_allocation_sheet'):
 			frappe.throw(_('Team Leader Allocation Sheet is disabled in Packing List Settings.'))
-		# Group items by item_code and verify total allocated qty does not exceed shipment qty
-		items_by_code = {}
-		for item in self.items:
-			if not item.item_code:
-				continue
-			if item.item_code not in items_by_code:
-				items_by_code[item.item_code] = {
-					"item_name": item.item_name,
-					"total_qty": flt(item.total_qty),
-					"allocated_sum": 0.0
-				}
-			items_by_code[item.item_code]["allocated_sum"] += flt(item.allocated_qty)
+		
+		# Quota validation runs ONLY when the document status is set to "Approved".
+		# During draft stages (e.g. Fetching requests), Sales Partners are allowed to have requested quantities
+		# whose sum exceeds shipment qty, and the Team Leader can fetch them without any validation crash.
+		if self.status == "Approved":
+			items_by_code = {}
+			for item in self.items:
+				if not item.item_code:
+					continue
+				if item.item_code not in items_by_code:
+					items_by_code[item.item_code] = {
+						"item_name": item.item_name,
+						"total_qty": flt(item.total_qty),
+						"allocated_sum": 0.0
+					}
+				items_by_code[item.item_code]["allocated_sum"] += flt(item.allocated_qty)
 			
-		for code, details in items_by_code.items():
-			if details["allocated_sum"] > details["total_qty"]:
+			errors = []
+			for code, details in items_by_code.items():
+				if details["allocated_sum"] > details["total_qty"]:
+					errors.append(
+						_("For Item {0} ({1}), total allocated quota ({2}) cannot exceed Shipment Qty ({3}).")
+						.format(code, details["item_name"], details["allocated_sum"], details["total_qty"])
+					)
+			
+			if errors:
+				# Show all errors in one go with clean layout
+				error_msg = "<br>".join([f"&bull; {err}" for err in errors])
 				frappe.throw(
-					_("For Item {0} ({1}), total allocated quota ({2}) cannot exceed Shipment Qty ({3}).")
-					.format(code, details["item_name"], details["allocated_sum"], details["total_qty"])
+					_("<b>Allocation Quota Violations:</b><br>{0}").format(error_msg),
+					title=_("Validation Error")
 				)
 
 @frappe.whitelist()
