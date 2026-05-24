@@ -1,4 +1,4 @@
-// -*- coding: utf-8 -*-
+﻿// -*- coding: utf-8 -*-
 // Copyright (c) 2026, Administrator and contributors
 // For license information, please see license.txt
 
@@ -177,12 +177,10 @@ function build_matrix_html(frm, wrapper, spq_cache) {
 
 	frm.doc.items.forEach(item => {
 		if (!item.item_code) return;
-		let cust = item.customer || "";
-		let key = item.item_code + "_" + cust;
+		let key = item.item_code;
 		if (!items_by_code[key]) {
 			items_by_code[key] = {
 				item_code: item.item_code,
-				customer: cust,
 				item_name: item.item_name || "",
 				description: item.description || "",
 				total_qty: item.total_qty || 0,
@@ -192,7 +190,18 @@ function build_matrix_html(frm, wrapper, spq_cache) {
 				total_quota: 0
 			};
 		}
-		items_by_code[key].partners[item.sales_partner] = item;
+		let p = item.sales_partner;
+		if (!items_by_code[key].partners[p]) {
+			items_by_code[key].partners[p] = {
+				allocation_request: 0,
+				allocated_qty: 0,
+				rows: []
+			};
+		}
+		items_by_code[key].partners[p].allocation_request += item.allocation_request || 0;
+		items_by_code[key].partners[p].allocated_qty += item.allocated_qty || 0;
+		items_by_code[key].partners[p].rows.push(item);
+		
 		items_by_code[key].total_req += item.allocation_request || 0;
 		items_by_code[key].total_quota += item.allocated_qty || 0;
 	});
@@ -280,7 +289,6 @@ function build_matrix_html(frm, wrapper, spq_cache) {
 					<thead>
 						<tr>
 							<th class="matrix-sticky-col" style="text-align: left; width: 120px;">Item Code</th>
-							<th style="text-align: left; width: 140px;">Customer Name</th>
 							<th style="text-align: left; width: 150px;">Item Name</th>
 							<th style="text-align: left; max-width: 200px;">Description</th>
 							<th style="text-align: right; width: 95px;">Shipment Qty</th>
@@ -313,7 +321,6 @@ function build_matrix_html(frm, wrapper, spq_cache) {
 		table_html += `
 			<tr data-key="${key}" data-item-code="${item_code}">
 				<td class="matrix-sticky-col" style="font-weight: 600;">${item_code}</td>
-				<td style="font-weight: 600; color: var(--primary);">${details.customer ? details.customer : '<span class="text-muted" style="font-style: italic;">None</span>'}</td>
 				<td style="font-weight: 500;">${details.item_name}</td>
 				<td style="font-size: 11px; color: var(--text-muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${details.description}">${details.description}</td>
 				<td style="text-align: right; font-weight: 500;">${frappe.format(details.total_qty, {fieldtype: "Float"}, {only_value: true})}</td>
@@ -321,17 +328,18 @@ function build_matrix_html(frm, wrapper, spq_cache) {
 				
 				<!-- Partners -->
 				${all_partners.map(p => {
-					let row_item = details.partners[p];
-					if (row_item) {
+					let partner_data = details.partners[p];
+					if (partner_data) {
+						let row_names = partner_data.rows.map(r => r.name).join(",");
 						return `
 							<td style="background: rgba(31, 73, 125, 0.01); text-align: center; vertical-align: middle;">
-								<div class="req-label">Req: ${frappe.format(row_item.allocation_request, {fieldtype: "Float"}, {only_value: true})}</div>
+								<div class="req-label">Req: ${frappe.format(partner_data.allocation_request, {fieldtype: "Float"}, {only_value: true})}</div>
 								<input type="number" 
 									class="matrix-quota-input" 
-									data-row-name="${row_item.name}" 
+									data-row-names="${row_names}" 
 									data-item-code="${item_code}"
 									data-partner="${p}"
-									value="${row_item.allocated_qty || 0}" 
+									value="${partner_data.allocated_qty || 0}" 
 									step="${details.spq}"
 									${frm.doc.status === "Approved" ? "disabled" : ""}>
 							</td>
@@ -392,9 +400,36 @@ function build_matrix_html(frm, wrapper, spq_cache) {
 	wrapper.off("change", ".matrix-quota-input");
 	wrapper.on("change", ".matrix-quota-input", function() {
 		let input = $(this);
-		let row_name = input.data("row-name");
+		let row_names_str = input.data("row-names");
 		let val = parseFloat(input.val()) || 0;
 		
-		frappe.model.set_value("Team Leader Allocation Detail", row_name, "allocated_qty", val);
+		if (row_names_str) {
+			let row_names = row_names_str.split(",");
+			if (row_names.length === 1) {
+				frappe.model.set_value("Team Leader Allocation Detail", row_names[0], "allocated_qty", val);
+			} else {
+				let total_requested = 0;
+				let rows_meta = [];
+				row_names.forEach(r_name => {
+					let row_doc = frappe.model.get_doc("Team Leader Allocation Detail", r_name);
+					if (row_doc) {
+						total_requested += row_doc.allocation_request || 0;
+						rows_meta.push(row_doc);
+					}
+				});
+				if (total_requested === 0) total_requested = 1;
+				
+				let remaining_val = val;
+				rows_meta.forEach((row_doc, idx) => {
+					if (idx === rows_meta.length - 1) {
+						frappe.model.set_value("Team Leader Allocation Detail", row_doc.name, "allocated_qty", remaining_val);
+					} else {
+						let share = (row_doc.allocation_request / total_requested) * val;
+						frappe.model.set_value("Team Leader Allocation Detail", row_doc.name, "allocated_qty", share);
+						remaining_val -= share;
+					}
+				});
+			}
+		}
 	});
 }

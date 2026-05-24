@@ -1,4 +1,4 @@
-import frappe
+﻿import frappe
 from frappe.model.document import Document
 from frappe import _
 
@@ -38,6 +38,58 @@ def get_sales_partner_for_user(user):
 				return sp_name
 	return None
 
+@frappe.whitelist()
+def get_available_shipments_for_partner(doctype, txt, searchfield, start, page_len, filters):
+	# Get the sales partner of the current user
+	user = frappe.session.user
+	sp_name = get_sales_partner_for_user(user)
+	
+	# If the user is system manager or admin and no partner is mapped, or if partner is specified in filters, let's use it
+	if filters and filters.get("sales_partner"):
+		sp_name = filters.get("sales_partner")
+		
+	# Find all Shipment Trackers already sent to Team Leader by this partner
+	exclude_shipments = []
+	if sp_name:
+		# Find Item Allocation Sheets for this partner in sent stages
+		sent_sheets = frappe.get_all("Item Allocation Sheet",
+			filters={
+				"sales_partner": sp_name,
+				"status": ["in", ["Pending Team Leader", "Pending Partner Finalization", "Approved"]],
+				"docstatus": ["<", 2]
+			},
+			fields=["name"])
+			
+		if sent_sheets:
+			sent_sheet_names = [s.name for s in sent_sheets]
+			# Find shipment trackers in these sheets
+			shipments_data = frappe.get_all("Item Allocation Shipment",
+				filters={
+					"parent": ["in", sent_sheet_names]
+				},
+				fields=["shipment_tracker"])
+			exclude_shipments = list(set([s.shipment_tracker for s in shipments_data if s.shipment_tracker]))
+			
+	# Query Shipment Trackers with docstatus=1 and not in exclude_shipments
+	query_filters = {
+		"docstatus": 1
+	}
+	if exclude_shipments:
+		query_filters["name"] = ["not in", exclude_shipments]
+		
+	# Match with txt search filter
+	if txt:
+		query_filters["name"] = ["like", f"%{txt}%"]
+		
+	shipments = frappe.get_all("Shipment Tracker",
+		filters=query_filters,
+		fields=["name", "supplier", "eta"],
+		start=start,
+		page_length=page_len,
+		as_list=1)
+		
+	return shipments
+
 class ItemAllocationSheet(Document):
 	def onload(self):
 		ensure_custom_fields()
@@ -47,6 +99,26 @@ class ItemAllocationSheet(Document):
 		
 		if not frappe.db.get_single_value('Packing List Settings', 'enable_item_allocation_sheet'):
 			frappe.throw(_("Item Allocation Sheet is disabled in Packing List Settings."))
+		
+		# Validation: Ensure partner cannot have multiple sheets for the same shipment once sent to Team Leader
+		selected_shipments = [s.shipment_tracker for s in self.shipments if s.shipment_tracker]
+		if selected_shipments and self.sales_partner:
+			other_sheets = frappe.get_all("Item Allocation Sheet",
+				filters={
+					"sales_partner": self.sales_partner,
+					"name": ["!=", self.name],
+					"status": ["in", ["Pending Team Leader", "Pending Partner Finalization", "Approved"]],
+					"docstatus": ["<", 2]
+				},
+				fields=["name"])
+				
+			for sheet_meta in other_sheets:
+				overlap_shipment = frappe.db.get_value("Item Allocation Shipment", {
+					"parent": sheet_meta.name,
+					"shipment_tracker": ["in", selected_shipments]
+				}, "shipment_tracker")
+				if overlap_shipment:
+					frappe.throw(_("Shipment {0} has already been sent to the Team Leader in sheet {1}. You cannot create or submit another sheet for this shipment.").format(overlap_shipment, sheet_meta.name))
 		
 		# Validation: Make sure Total Allocation Request does not exceed Shipment Quantity per Item Code
 		selected_shipments = [s.shipment_tracker for s in self.shipments if s.shipment_tracker]

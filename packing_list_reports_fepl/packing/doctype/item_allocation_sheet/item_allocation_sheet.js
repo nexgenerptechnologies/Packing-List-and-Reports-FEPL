@@ -1,4 +1,4 @@
-frappe.ui.form.on('Item Allocation Sheet', {
+﻿frappe.ui.form.on('Item Allocation Sheet', {
 	onload: function(frm) {
 		if (!frm.doc.sales_partner) {
 			frappe.call({
@@ -84,11 +84,12 @@ frappe.ui.form.on('Item Allocation Sheet', {
 			};
 		});
 
-		// Filter Shipment link inside shipments table to only show submitted Shipment Trackers
-		frm.set_query('shipment_tracker', 'shipments', function() {
+		// Filter Shipment link inside shipments table to only show submitted Shipment Trackers that haven't been sent to Team Leader by this Sales Partner
+		frm.set_query('shipment_tracker', 'shipments', function(doc) {
 			return {
+				query: "packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.get_available_shipments_for_partner",
 				filters: {
-					docstatus: 1
+					sales_partner: doc.sales_partner
 				}
 			};
 		});
