@@ -229,8 +229,8 @@ frappe.ui.form.on('Item Allocation Sheet', {
 			}
 		} else if (frm.doc.status === 'Pending Partner Finalization') {
 			items_grid.update_docfield_property('item_code', 'read_only', 1);
-			items_grid.update_docfield_property('customer', 'read_only', 1);
-			items_grid.update_docfield_property('sales_order', 'read_only', 1);
+			items_grid.update_docfield_property('customer', 'read_only', 0);
+			items_grid.update_docfield_property('sales_order', 'read_only', 0);
 			items_grid.update_docfield_property('allocation_request', 'read_only', 1);
 			items_grid.update_docfield_property('allocated_qty', 'read_only', 1);
 			

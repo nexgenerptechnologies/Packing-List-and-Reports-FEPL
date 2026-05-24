@@ -177,12 +177,15 @@ def download_tl_template(docname=None):
 	for item in doc.items:
 		if not item.item_code:
 			continue
-		if item.item_code not in items_by_code:
+		cust = item.customer or ""
+		key = (item.item_code, cust)
+		if key not in items_by_code:
 			spq = 1
 			if has_spq:
 				spq = frappe.db.get_value("Item", item.item_code, "custom_standard_packing_qty") or 1
-			items_by_code[item.item_code] = {
+			items_by_code[key] = {
 				"item_code": item.item_code,
+				"customer": cust,
 				"item_name": item.item_name,
 				"description": item.description,
 				"total_qty": item.total_qty or 0,
@@ -192,28 +195,29 @@ def download_tl_template(docname=None):
 				"total_quota": 0
 			}
 		
-		partner_data = items_by_code[item.item_code]["partners"]
+		partner_data = items_by_code[key]["partners"]
 		partner_data[item.sales_partner] = {
 			"request": item.allocation_request or 0,
 			"quota": item.allocated_qty if item.allocated_qty is not None else item.allocation_request or 0
 		}
-		items_by_code[item.item_code]["total_req"] += item.allocation_request or 0
-		items_by_code[item.item_code]["total_quota"] += item.allocated_qty if item.allocated_qty is not None else item.allocation_request or 0
+		items_by_code[key]["total_req"] += item.allocation_request or 0
+		items_by_code[key]["total_quota"] += item.allocated_qty if item.allocated_qty is not None else item.allocation_request or 0
 
 	wb = openpyxl.Workbook()
 	ws = wb.active
 	ws.title = "TL Quota Allocation"
 	
-	headers = ["Item Code", "Item Name", "Description", "Shipment Qty", "SPQ"]
+	headers = ["Item Code", "Customer Name", "Item Name", "Description", "Shipment Qty", "SPQ"]
 	for p in all_partners:
 		headers.append(p)
 	headers.extend(["Total Allocation Request", "Total TL Quota"])
 	
 	ws.append(headers)
 	
-	for code, details in items_by_code.items():
+	for key, details in items_by_code.items():
 		row_data = [
 			details["item_code"],
+			details["customer"],
 			details["item_name"],
 			details["description"],
 			details["total_qty"],
@@ -236,7 +240,7 @@ def download_tl_template(docname=None):
 	for col_idx, cell in enumerate(ws[1], 1):
 		cell.font = header_font
 		cell.fill = header_fill
-		cell.alignment = center_align if col_idx not in [2, 3] else left_align
+		cell.alignment = center_align if col_idx not in [3, 4] else left_align
 		
 	for col in ws.columns:
 		vals = [cell.value for cell in col if cell.value is not None]
@@ -248,9 +252,9 @@ def download_tl_template(docname=None):
 	wb.save(output)
 	output.seek(0)
 	
-	frappe.response['filename'] = f"TL_Quota_Allocation_{docname}.xlsx"
-	frappe.response['filecontent'] = output.getvalue()
-	frappe.response['type'] = 'binary'
+	frappe.response["filename"] = f"TL_Quota_Allocation_{docname}.xlsx"
+	frappe.response["filecontent"] = output.getvalue()
+	frappe.response["type"] = "binary"
 
 @frappe.whitelist()
 def upload_tl_excel(docname):
@@ -279,7 +283,13 @@ def upload_tl_excel(docname):
 			
 	item_code_idx = headers_lower.index("item code")
 	
-	static_cols = ["item code", "item name", "description", "shipment qty", "spq", "total allocation request", "tl quota", "total tl quota", "total quota", "total allocation"]
+	customer_idx = None
+	if "customer name" in headers_lower:
+		customer_idx = headers_lower.index("customer name")
+	elif "customer" in headers_lower:
+		customer_idx = headers_lower.index("customer")
+	
+	static_cols = ["item code", "customer name", "customer", "item name", "description", "shipment qty", "spq", "total allocation request", "tl quota", "total tl quota", "total quota", "total allocation"]
 	
 	partner_cols = []
 	for idx, h in enumerate(raw_headers):
@@ -296,13 +306,20 @@ def upload_tl_excel(docname):
 	def normalize_str(val):
 		if val is None:
 			return ""
-		return str(val).strip().lower().replace(" ", "").replace("-", "").replace("_", "")
+		val_str = str(val).strip()
+		if val_str.endswith(".0"):
+			val_str = val_str[:-2]
+		return val_str.lower().replace(" ", "").replace("-", "").replace("_", "")
 
 	updated_count = 0
 	for row in rows[1:]:
 		item_code = str(row[item_code_idx] or "").strip()
 		if not item_code:
 			continue
+			
+		row_cust = ""
+		if customer_idx is not None and customer_idx < len(row):
+			row_cust = str(row[customer_idx] or "").strip()
 			
 		for p_col in partner_cols:
 			partner_name = p_col["partner_name"]
@@ -314,7 +331,8 @@ def upload_tl_excel(docname):
 				
 			for child in doc.items:
 				if (normalize_str(child.item_code) == normalize_str(item_code) and
-					normalize_str(child.sales_partner) == normalize_str(partner_name)):
+					normalize_str(child.sales_partner) == normalize_str(partner_name) and
+					normalize_str(child.customer) == normalize_str(row_cust)):
 					child.allocated_qty = val
 					updated_count += 1
 					
