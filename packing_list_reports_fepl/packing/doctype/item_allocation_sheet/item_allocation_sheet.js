@@ -1,18 +1,5 @@
 frappe.ui.form.on('Item Allocation Sheet', {
 	onload: function(frm) {
-		frappe.dom.set_style(`
-			.grid-heading-row, .grid-heading {
-				position: sticky !important;
-				top: 55px !important;
-				z-index: 100 !important;
-				background-color: var(--card-bg, #ffffff) !important;
-				border-bottom: 2px solid var(--border-color, #d1d8dd) !important;
-				box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-			}
-			.grid-row:hover {
-				background-color: rgba(31, 73, 125, 0.02) !important;
-			}
-		`);
 		if (!frm.doc.sales_partner) {
 			frappe.call({
 				method: "packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.get_sales_partner_for_user",
