@@ -82,8 +82,8 @@ def fetch_partner_requests(docname):
 				child.sales_partner = partner
 				child.customer = item.customer
 				child.allocation_request = flt(item.allocation_request)
-				# Initially allocate what they requested
-				child.allocated_qty = flt(item.allocation_request)
+				# Initially allocate 0.0 (blank quota) as requested by user
+				child.allocated_qty = 0.0
 				child.source_doc = sheet.name
 				child.source_row = item.name
 				matched_count += 1
@@ -266,9 +266,9 @@ def upload_tl_excel(docname):
 		frappe.throw(_("Please upload an Excel file first."))
 		
 	file_doc = frappe.get_doc("File", {"file_url": doc.excel_file})
-	file_content = file_doc.get_content()
+	file_path = file_doc.get_full_path()
 	
-	wb = openpyxl.load_workbook(BytesIO(file_content), data_only=True)
+	wb = openpyxl.load_workbook(file_path, data_only=True)
 	ws = wb.active
 	
 	rows = list(ws.iter_rows(values_only=True))
