@@ -2,6 +2,7 @@ import frappe
 from frappe.model.document import Document
 from frappe import _
 
+@frappe.whitelist()
 def get_sales_partner_for_user(user):
 	# 1. Standard ERPNext mapping via Portal User child table
 	sp_name = frappe.db.get_value("Portal User", {"user": user, "parenttype": "Sales Partner"}, "parent")
@@ -11,16 +12,19 @@ def get_sales_partner_for_user(user):
 	sp_name = frappe.db.get_value("Sales Partner", {"name": user}, "name")
 	if sp_name:
 		return sp_name
-	# 3. Check if Sales Partner Name matches the user ID (email)
-	sp_name = frappe.db.get_value("Sales Partner", {"sales_partner_name": user}, "name")
-	if sp_name:
-		return sp_name
-	# 4. Check if Sales Partner Name matches the user's full name
-	full_name = frappe.db.get_value("User", user, "full_name")
-	if full_name:
-		sp_name = frappe.db.get_value("Sales Partner", {"sales_partner_name": full_name}, "name")
+		
+	# Check if database has sales_partner_name column before querying to prevent OperationalError 1054
+	if frappe.db.has_column("Sales Partner", "sales_partner_name"):
+		# 3. Check if Sales Partner Name matches the user ID (email)
+		sp_name = frappe.db.get_value("Sales Partner", {"sales_partner_name": user}, "name")
 		if sp_name:
 			return sp_name
+		# 4. Check if Sales Partner Name matches the user's full name
+		full_name = frappe.db.get_value("User", user, "full_name")
+		if full_name:
+			sp_name = frappe.db.get_value("Sales Partner", {"sales_partner_name": full_name}, "name")
+			if sp_name:
+				return sp_name
 	return None
 
 class ItemAllocationSheet(Document):
