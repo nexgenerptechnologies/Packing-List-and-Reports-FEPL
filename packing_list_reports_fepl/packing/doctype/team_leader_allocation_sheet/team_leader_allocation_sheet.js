@@ -302,7 +302,7 @@ function build_matrix_html(frm, wrapper, spq_cache) {
 				<td class="matrix-sticky-col" style="font-weight: 600;">${item_code}</td>
 				<td style="font-weight: 500;">${details.item_name}</td>
 				<td style="font-size: 11px; color: var(--text-muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${details.description}">${details.description}</td>
-				<td style="text-align: right; font-weight: 500;">${frappe.format(details.total_qty, {fieldtype: 'Float'})}</td>
+				<td style="text-align: right; font-weight: 500;">${frappe.format(details.total_qty, {fieldtype: 'Float'}, {only_value: true})}</td>
 				<td style="text-align: center; color: #555; font-weight: 500;">${details.spq}</td>
 				
 				<!-- Partners -->
@@ -311,7 +311,7 @@ function build_matrix_html(frm, wrapper, spq_cache) {
 					if (row_item) {
 						return `
 							<td style="background: rgba(31, 73, 125, 0.01); text-align: center; vertical-align: middle;">
-								<div class="req-label">Req: ${frappe.format(row_item.allocation_request, {fieldtype: 'Float'})}</div>
+								<div class="req-label">Req: ${frappe.format(row_item.allocation_request, {fieldtype: 'Float'}, {only_value: true})}</div>
 								<input type="number" 
 									class="matrix-quota-input" 
 									data-row-name="${row_item.name}" 
@@ -327,10 +327,10 @@ function build_matrix_html(frm, wrapper, spq_cache) {
 					}
 				}).join('')}
 				
-				<td style="text-align: right; background: #FFF9E6; font-weight: 500;">${frappe.format(details.total_req, {fieldtype: 'Float'})}</td>
-				<td class="total-quota-cell" style="text-align: right; background: #E6F4EA; font-weight: 600;" data-item-code="${item_code}">${frappe.format(details.total_quota, {fieldtype: 'Float'})}</td>
+				<td style="text-align: right; background: #FFF9E6; font-weight: 500;">${frappe.format(details.total_req, {fieldtype: 'Float'}, {only_value: true})}</td>
+				<td class="total-quota-cell" style="text-align: right; background: #E6F4EA; font-weight: 600;" data-item-code="${item_code}">${frappe.format(details.total_quota, {fieldtype: 'Float'}, {only_value: true})}</td>
 				<td class="remaining-qty-cell" style="text-align: right; font-weight: 600; color: ${is_over ? '#d9534f' : '#2e7d32'}; background: ${is_over ? '#fdf2f2' : '#f4faf6'};" data-item-code="${item_code}" data-total-qty="${details.total_qty}">
-					${frappe.format(remaining_qty, {fieldtype: 'Float'})}
+					${frappe.format(remaining_qty, {fieldtype: 'Float'}, {only_value: true})}
 				</td>
 			</tr>
 		`;
@@ -357,13 +357,13 @@ function build_matrix_html(frm, wrapper, spq_cache) {
 		});
 		
 		let quota_cell = wrapper.find(`.total-quota-cell[data-item-code="${item_code}"]`);
-		quota_cell.text(frappe.format(total_quota, {fieldtype: 'Float'}));
+		quota_cell.text(frappe.format(total_quota, {fieldtype: 'Float'}, {only_value: true}));
 		
 		let rem_cell = wrapper.find(`.remaining-qty-cell[data-item-code="${item_code}"]`);
 		let shipment_qty = parseFloat(rem_cell.data('total-qty')) || 0;
 		let remaining_qty = shipment_qty - total_quota;
 		
-		rem_cell.text(frappe.format(remaining_qty, {fieldtype: 'Float'}));
+		rem_cell.text(frappe.format(remaining_qty, {fieldtype: 'Float'}, {only_value: true}));
 		
 		if (remaining_qty < 0) {
 			rem_cell.css({

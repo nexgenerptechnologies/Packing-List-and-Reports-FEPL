@@ -67,26 +67,49 @@ def fetch_partner_requests(docname):
 		}, 
 		fields=["name", "sales_partner"])
 		
-	matched_count = 0
+	# Consolidate requests by (item_code, sales_partner)
+	consolidated = {}
+	
 	for sheet_meta in pending_sheets:
 		sheet = frappe.get_doc("Item Allocation Sheet", sheet_meta["name"])
+		partner = sheet.sales_partner
 		for item in sheet.items:
 			if item.shipment in selected_shipments:
-				child = doc.append("items", {})
-				child.shipment = item.shipment
-				child.item_code = item.item_code
-				child.item_name = item.item_name
-				child.description = item.description
-				child.total_qty = item.total_qty
-				child.sales_partner = sheet.sales_partner or item.sales_partner
-				child.allocation_request = item.allocation_request
-				child.allocated_qty = item.allocated_qty or item.allocation_request
-				child.source_doc = sheet.name
-				child.source_row = item.name
-				matched_count += 1
+				key = (item.item_code, partner)
+				if key not in consolidated:
+					consolidated[key] = {
+						"shipment": item.shipment,
+						"item_code": item.item_code,
+						"item_name": item.item_name,
+						"description": item.description,
+						"total_qty": flt(item.total_qty),
+						"sales_partner": partner,
+						"allocation_request": 0.0,
+						"allocated_qty": 0.0,
+						"source_doc": sheet.name,
+						"source_rows": []
+					}
+				consolidated[key]["allocation_request"] += flt(item.allocation_request)
+				consolidated[key]["source_rows"].append(item.name)
+		
+	matched_count = 0
+	for key, data in consolidated.items():
+		child = doc.append("items", {})
+		child.shipment = data["shipment"]
+		child.item_code = data["item_code"]
+		child.item_name = data["item_name"]
+		child.description = data["description"]
+		child.total_qty = data["total_qty"]
+		child.sales_partner = data["sales_partner"]
+		child.allocation_request = data["allocation_request"]
+		# Initially allocate what they requested
+		child.allocated_qty = data["allocation_request"]
+		child.source_doc = data["source_doc"]
+		child.source_row = ",".join(data["source_rows"])
+		matched_count += 1
 				
 	doc.save()
-	return f"Successfully fetched {matched_count} partner requests."
+	return f"Successfully fetched {matched_count} consolidated partner requests."
 
 @frappe.whitelist()
 def distribute_tl_quotas(docname):
@@ -97,8 +120,9 @@ def distribute_tl_quotas(docname):
 	updated_docs = set()
 	
 	for item in doc.items:
-		if item.source_doc and item.source_row:
-			frappe.db.set_value("Partner Allocation Detail", item.source_row, "allocated_qty", item.allocated_qty)
+		if item.source_doc and item.item_code:
+			# Update all matching item rows in the partner's Item Allocation Sheet with the allocated quota
+			frappe.db.sql("UPDATE `tabPartner Allocation Detail` SET allocated_qty = %s WHERE parent = %s AND item_code = %s", (item.allocated_qty, item.source_doc, item.item_code))
 			updated_docs.add(item.source_doc)
 			
 	for s_name in updated_docs:
