@@ -67,52 +67,29 @@ def fetch_partner_requests(docname):
 		}, 
 		fields=["name", "sales_partner"])
 		
-	# Consolidate requests by (item_code, sales_partner, customer)
-	consolidated = {}
-	
+	matched_count = 0
 	for sheet_meta in pending_sheets:
 		sheet = frappe.get_doc("Item Allocation Sheet", sheet_meta["name"])
 		partner = sheet.sales_partner
 		for item in sheet.items:
 			if item.shipment in selected_shipments:
-				cust = item.customer or ""
-				key = (item.item_code, partner, cust)
-				if key not in consolidated:
-					consolidated[key] = {
-						"shipment": item.shipment,
-						"item_code": item.item_code,
-						"item_name": item.item_name,
-						"description": item.description,
-						"total_qty": flt(item.total_qty),
-						"sales_partner": partner,
-						"customer": cust,
-						"allocation_request": 0.0,
-						"allocated_qty": 0.0,
-						"source_doc": sheet.name,
-						"source_rows": []
-					}
-				consolidated[key]["allocation_request"] += flt(item.allocation_request)
-				consolidated[key]["source_rows"].append(item.name)
-		
-	matched_count = 0
-	for key, data in consolidated.items():
-		child = doc.append("items", {})
-		child.shipment = data["shipment"]
-		child.item_code = data["item_code"]
-		child.item_name = data["item_name"]
-		child.description = data["description"]
-		child.total_qty = data["total_qty"]
-		child.sales_partner = data["sales_partner"]
-		child.customer = data["customer"]
-		child.allocation_request = data["allocation_request"]
-		# Initially allocate what they requested
-		child.allocated_qty = data["allocation_request"]
-		child.source_doc = data["source_doc"]
-		child.source_row = ",".join(data["source_rows"])
-		matched_count += 1
+				child = doc.append("items", {})
+				child.shipment = item.shipment
+				child.item_code = item.item_code
+				child.item_name = item.item_name
+				child.description = item.description
+				child.total_qty = flt(item.total_qty)
+				child.sales_partner = partner
+				child.customer = item.customer
+				child.allocation_request = flt(item.allocation_request)
+				# Initially allocate what they requested
+				child.allocated_qty = flt(item.allocation_request)
+				child.source_doc = sheet.name
+				child.source_row = item.name
+				matched_count += 1
 				
 	doc.save()
-	return f"Successfully fetched {matched_count} consolidated partner requests."
+	return f"Successfully fetched {matched_count} partner requests."
 
 @frappe.whitelist()
 def distribute_tl_quotas(docname):
@@ -352,11 +329,27 @@ def upload_tl_excel(docname):
 			if val_idx < len(row):
 				val = flt(row[val_idx])
 				
+			# Find all matching child rows
+			matching_children = []
 			for child in doc.items:
 				if (normalize_str(child.item_code) == normalize_str(item_code) and
 					normalize_str(child.sales_partner) == normalize_str(partner_name) and
 					normalize_str(child.customer) == normalize_str(row_cust)):
-					child.allocated_qty = val
+					matching_children.append(child)
+					
+			if len(matching_children) == 1:
+				matching_children[0].allocated_qty = val
+				updated_count += 1
+			elif len(matching_children) > 1:
+				total_requested = sum(flt(c.allocation_request) for c in matching_children) or 1.0
+				remaining_val = val
+				for idx, child in enumerate(matching_children):
+					if idx == len(matching_children) - 1:
+						child.allocated_qty = remaining_val
+					else:
+						share = flt((flt(child.allocation_request) / total_requested) * val)
+						child.allocated_qty = share
+						remaining_val -= share
 					updated_count += 1
 					
 	doc.save()
