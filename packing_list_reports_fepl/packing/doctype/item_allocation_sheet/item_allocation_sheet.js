@@ -79,16 +79,19 @@ frappe.ui.form.on('Item Allocation Sheet', {
 		});
 	},
 	refresh: function(frm) {
-		frappe.db.get_single_value('Packing List Settings', 'enable_item_allocation_sheet').then(val => {
-			if (val === 0 || val === "0") {
-				frappe.msgprint({
-					title: __('Allocation Disabled'),
-					indicator: 'red',
-					message: __('Item Allocation Sheet is disabled. Click <a href="/app/packing-list-settings">here</a> to go to Settings and enable it.')
-				});
-				frm.disable_save();
-			}
-		});
+		let is_manager = frappe.user.has_role('System Manager') || frappe.user.has_role('Sales Manager') || frappe.session.user === 'Administrator';
+		if (is_manager) {
+			frappe.db.get_single_value('Packing List Settings', 'enable_item_allocation_sheet').then(val => {
+				if (val === 0 || val === "0") {
+					frappe.msgprint({
+						title: __('Allocation Disabled'),
+						indicator: 'red',
+						message: __('Item Allocation Sheet is disabled. Click <a href="/app/packing-list-settings">here</a> to go to Settings and enable it.')
+					});
+					frm.disable_save();
+				}
+			});
+		}
 
 		frm.clear_custom_buttons();
 		

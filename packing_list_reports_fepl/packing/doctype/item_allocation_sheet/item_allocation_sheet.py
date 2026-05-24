@@ -34,6 +34,9 @@ class ItemAllocationSheet(Document):
 	def validate(self):
 		ensure_custom_fields()
 		
+		if not frappe.db.get_single_value('Packing List Settings', 'enable_item_allocation_sheet'):
+			frappe.throw(_("Item Allocation Sheet is disabled in Packing List Settings."))
+		
 		# Validation: Make sure Total Allocation Request does not exceed Shipment Quantity per Item Code
 		selected_shipments = [s.shipment_tracker for s in self.shipments if s.shipment_tracker]
 		if selected_shipments:
