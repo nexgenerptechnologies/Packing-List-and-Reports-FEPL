@@ -170,7 +170,7 @@ def download_tl_template(docname=None):
 	headers = ["Item Code", "Item Name", "Description", "Shipment Qty", "SPQ"]
 	for p in all_partners:
 		headers.append(p)
-	headers.extend(["Total Allocation Request", "TL Quota"])
+	headers.extend(["Total Allocation Request", "Total TL Quota"])
 	
 	ws.append(headers)
 	
@@ -242,7 +242,7 @@ def upload_tl_excel(docname):
 			
 	item_code_idx = headers_lower.index("item code")
 	
-	static_cols = ["item code", "item name", "description", "shipment qty", "spq", "total allocation request", "tl quota"]
+	static_cols = ["item code", "item name", "description", "shipment qty", "spq", "total allocation request", "tl quota", "total tl quota", "total quota", "total allocation"]
 	
 	partner_cols = []
 	for idx, h in enumerate(raw_headers):
