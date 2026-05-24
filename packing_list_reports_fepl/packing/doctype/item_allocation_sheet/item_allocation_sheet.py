@@ -25,6 +25,17 @@ def get_sales_partner_for_user(user):
 			sp_name = frappe.db.get_value("Sales Partner", {"sales_partner_name": full_name}, "name")
 			if sp_name:
 				return sp_name
+				
+	# 5. Check if email prefix matches Sales Partner ID or Sales Partner Name
+	if user and "@" in user:
+		prefix = user.split("@")[0].strip()
+		sp_name = frappe.db.get_value("Sales Partner", {"name": ["like", f"%{prefix}%"]}, "name")
+		if sp_name:
+			return sp_name
+		if frappe.db.has_column("Sales Partner", "sales_partner_name"):
+			sp_name = frappe.db.get_value("Sales Partner", {"sales_partner_name": ["like", f"%{prefix}%"]}, "name")
+			if sp_name:
+				return sp_name
 	return None
 
 class ItemAllocationSheet(Document):
@@ -116,6 +127,9 @@ class ItemAllocationSheet(Document):
 	def on_submit(self):
 		self.db_set("status", "Approved")
 		
+		from frappe.utils import flt
+		reserved_count = 0
+		
 		# Reserve quantities in Sales Orders
 		for item in self.items:
 			if item.sales_order and item.final_allocation > 0:
@@ -126,9 +140,17 @@ class ItemAllocationSheet(Document):
 				}, ["name", "custom_reserved_qty"], as_dict=1)
 				
 				if so_item:
-					current_reserved = so_item.custom_reserved_qty or 0.0
-					new_reserved = current_reserved + item.final_allocation
+					current_reserved = flt(so_item.custom_reserved_qty)
+					new_reserved = current_reserved + flt(item.final_allocation)
 					frappe.db.set_value("Sales Order Item", so_item.name, "custom_reserved_qty", new_reserved)
+					frappe.clear_document_cache("Sales Order", item.sales_order)
+					reserved_count += 1
+					
+		if reserved_count > 0:
+			frappe.msgprint(
+				_("<b>Stock Reservation Successful:</b><br>&bull; Stock has been successfully reserved against the corresponding Sales Order Item Lines."),
+				alert=True
+			)
 					
 	def on_cancel(self):
 		# Restriction: Only the owner (the Sales Partner who submitted it) or a System/Sales Manager can cancel

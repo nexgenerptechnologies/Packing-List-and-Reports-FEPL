@@ -1,12 +1,13 @@
 frappe.ui.form.on('Item Allocation Sheet', {
 	onload: function(frm) {
 		frappe.dom.set_style(`
-			.grid-heading-row {
-				position: sticky;
-				top: 0px;
-				z-index: 10;
+			.grid-heading-row, .grid-heading {
+				position: sticky !important;
+				top: 55px !important;
+				z-index: 100 !important;
 				background-color: var(--card-bg, #ffffff) !important;
 				border-bottom: 2px solid var(--border-color, #d1d8dd) !important;
+				box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 			}
 			.grid-row:hover {
 				background-color: rgba(31, 73, 125, 0.02) !important;
@@ -19,16 +20,6 @@ frappe.ui.form.on('Item Allocation Sheet', {
 				callback: function(r) {
 					if (r.message) {
 						frm.set_value("sales_partner", r.message);
-					} else {
-						let is_manager = frappe.user_roles.includes("System Manager") || frappe.user_roles.includes("Sales Manager") || frappe.session.user === "Administrator";
-						if (!is_manager) {
-							frappe.msgprint({
-								title: __('Access Restriction'),
-								indicator: 'red',
-								message: __('Your user login "{0}" is not registered as a Sales Partner in the system. You will not be allowed to save or submit this sheet.', [frappe.session.user])
-							});
-							frappe.validated = false;
-						}
 					}
 				}
 			});
