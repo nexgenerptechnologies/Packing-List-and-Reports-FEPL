@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 # Copyright (c) 2026, Administrator and contributors
 # For license information, please see license.txt
 
@@ -67,7 +67,7 @@ def fetch_partner_requests(docname):
 		}, 
 		fields=["name", "sales_partner"])
 		
-	# Consolidate requests by (item_code, sales_partner)
+	# Consolidate requests by (item_code, sales_partner, customer)
 	consolidated = {}
 	
 	for sheet_meta in pending_sheets:
@@ -75,7 +75,8 @@ def fetch_partner_requests(docname):
 		partner = sheet.sales_partner
 		for item in sheet.items:
 			if item.shipment in selected_shipments:
-				key = (item.item_code, partner)
+				cust = item.customer or ""
+				key = (item.item_code, partner, cust)
 				if key not in consolidated:
 					consolidated[key] = {
 						"shipment": item.shipment,
@@ -84,6 +85,7 @@ def fetch_partner_requests(docname):
 						"description": item.description,
 						"total_qty": flt(item.total_qty),
 						"sales_partner": partner,
+						"customer": cust,
 						"allocation_request": 0.0,
 						"allocated_qty": 0.0,
 						"source_doc": sheet.name,
@@ -101,6 +103,7 @@ def fetch_partner_requests(docname):
 		child.description = data["description"]
 		child.total_qty = data["total_qty"]
 		child.sales_partner = data["sales_partner"]
+		child.customer = data["customer"]
 		child.allocation_request = data["allocation_request"]
 		# Initially allocate what they requested
 		child.allocated_qty = data["allocation_request"]
@@ -120,9 +123,29 @@ def distribute_tl_quotas(docname):
 	updated_docs = set()
 	
 	for item in doc.items:
-		if item.source_doc and item.item_code:
-			# Update all matching item rows in the partner's Item Allocation Sheet with the allocated quota
-			frappe.db.sql("UPDATE `tabPartner Allocation Detail` SET allocated_qty = %s WHERE parent = %s AND item_code = %s", (item.allocated_qty, item.source_doc, item.item_code))
+		if item.source_doc and item.source_row:
+			rows_list = item.source_row.split(",")
+			# Set the allocated_qty of each individual row in the child table
+			if len(rows_list) == 1:
+				r_name = rows_list[0].strip()
+				if r_name and frappe.db.exists("Partner Allocation Detail", r_name):
+					frappe.db.set_value("Partner Allocation Detail", r_name, "allocated_qty", item.allocated_qty)
+			else:
+				# If there are multiple rows consolidated, distribute the allocated qty proportionally
+				total_requested = flt(frappe.db.get_value("Partner Allocation Detail", {"name": ["in", rows_list]}, "sum(allocation_request)")) or 1.0
+				remaining_allocated = flt(item.allocated_qty)
+				for i, r_name in enumerate(rows_list):
+					r_name = r_name.strip()
+					if not r_name or not frappe.db.exists("Partner Allocation Detail", r_name):
+						continue
+					if i == len(rows_list) - 1:
+						frappe.db.set_value("Partner Allocation Detail", r_name, "allocated_qty", remaining_allocated)
+					else:
+						req = flt(frappe.db.get_value("Partner Allocation Detail", r_name, "allocation_request"))
+						share = flt((req / total_requested) * item.allocated_qty)
+						frappe.db.set_value("Partner Allocation Detail", r_name, "allocated_qty", share)
+						remaining_allocated -= share
+						
 			updated_docs.add(item.source_doc)
 			
 	for s_name in updated_docs:
