@@ -222,8 +222,10 @@ def upload_excel_data(docname):
 			s = re.sub(r'<[^>]*>', '', s)
 			s = s.replace('\xa0', ' ').replace('\r', '').replace('\n', '')
 			s = " ".join(s.split())
-			return s.strip().lower()
-
+			val_str = s.strip()
+			if val_str.endswith(".0"):
+				val_str = val_str[:-2]
+			return val_str.lower()
 		current_item_code = ""
 		current_item_name = ""
 		current_description = ""
@@ -353,29 +355,42 @@ def upload_excel_data(docname):
 						
 		# Sales Partner Finalization Upload (Pending Partner Finalization Stage)
 		elif doc.status == "Pending Partner Finalization":
+			# Keep track of how many times we''ve seen each item code in the Excel sheet
+			item_seen_counts = {}
+			current_item_code = ""
+			
 			for row in sheet.iter_rows(min_row=2, values_only=True):
 				if not any(row): continue
+				
 				excel_item_code = row[col_map.get("item_code")] if "item_code" in col_map else None
 				if excel_item_code and str(excel_item_code).strip():
 					current_item_code = str(excel_item_code).strip()
 					
 				if not current_item_code:
 					continue
+					
+				# Strip .0 from numeric item codes
+				norm_item_code = normalize_str(current_item_code)
+				
+				# Increment seen count for this item code
+				item_seen_counts[norm_item_code] = item_seen_counts.get(norm_item_code, 0) + 1
+				target_index = item_seen_counts[norm_item_code]
 				
 				customer = str(row[col_map.get("customer")] or "").strip() if "customer" in col_map else ""
 				sales_order = str(row[col_map.get("sales_order")] or "").strip() if "sales_order" in col_map else ""
 				final_allocation = flt(row[col_map["final_allocation"]]) if "final_allocation" in col_map else 0.0
 				
+				# Find the target child row in doc.items
+				current_idx = 0
 				for child in doc.items:
-					match = (normalize_str(child.item_code) == normalize_str(current_item_code))
-					if customer:
-						match = match and (normalize_str(child.customer) == normalize_str(customer))
-					if sales_order:
-						match = match and (normalize_str(child.sales_order) == normalize_str(sales_order))
-						
-					if match:
-						child.final_allocation = final_allocation
-						
+					if normalize_str(child.item_code) == norm_item_code:
+						current_idx += 1
+						if current_idx == target_index:
+							# Found the exact matching row in sequential order!
+							child.customer = customer
+							child.sales_order = sales_order
+							child.final_allocation = final_allocation
+							break
 		doc.save()
 		return "Success"
 	except frappe.ValidationError:

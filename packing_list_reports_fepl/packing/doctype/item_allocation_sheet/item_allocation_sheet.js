@@ -1,5 +1,17 @@
 frappe.ui.form.on('Item Allocation Sheet', {
 	onload: function(frm) {
+		frappe.dom.set_style(`
+			.grid-heading-row {
+				position: sticky;
+				top: 0px;
+				z-index: 10;
+				background-color: var(--card-bg, #ffffff) !important;
+				border-bottom: 2px solid var(--border-color, #d1d8dd) !important;
+			}
+			.grid-row:hover {
+				background-color: rgba(31, 73, 125, 0.02) !important;
+			}
+		`);
 		if (!frm.doc.sales_partner) {
 			frappe.call({
 				method: "packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.get_sales_partner_for_user",
