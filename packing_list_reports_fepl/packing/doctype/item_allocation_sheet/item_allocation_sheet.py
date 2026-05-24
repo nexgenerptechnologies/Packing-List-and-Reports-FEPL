@@ -79,6 +79,16 @@ class ItemAllocationSheet(Document):
 				if final_sum > quota:
 					frappe.throw(_("Item {0}: Total Final Allocation ({1}) exceeds the Quota allocated by Team Leader ({2}).").format(item_code, final_sum, quota))
 
+		# Validation: Customer and Sales Order constraint checks
+		for idx, item in enumerate(self.items):
+			if item.item_code and item.customer:
+				validate_item_customer_sales_order(
+					item.item_code,
+					item.customer,
+					item.sales_order,
+					row_label=f"Row {idx + 1}"
+				)
+
 	def before_save(self):
 		# Re-map sales partner based on user and check registration
 		is_manager = "System Manager" in frappe.get_roles() or "Sales Manager" in frappe.get_roles() or frappe.session.user == "Administrator"
@@ -249,6 +259,15 @@ def upload_excel_data(docname):
 				customer = str(row[col_map.get("customer")] or "").strip() if "customer" in col_map else ""
 				sales_order = str(row[col_map.get("sales_order")] or "").strip() if "sales_order" in col_map else ""
 				allocation_req = flt(row[col_map["allocation_request"]]) if "allocation_request" in col_map else 0.0
+				
+				if customer:
+					customer_id = validate_item_customer_sales_order(
+						current_item_code,
+						customer,
+						sales_order,
+						row_label=f"Row {row_idx}"
+					)
+					customer = customer_id
 				
 				# 1. Reconciliation: Verify against items in the selected Shipment Trackers
 				matched_item = None
@@ -534,3 +553,131 @@ def distribute_tl_quotas(docname):
 	doc.save()
 	return "Quotas successfully approved and distributed to all Sales Partners."
 
+@frappe.whitelist()
+def get_customers_for_item(doctype, txt, searchfield, start, page_len, filters):
+	item_code = filters.get("item_code")
+	if not item_code:
+		return []
+		
+	# Find all submitted Sales Orders with this item_code that are not completed/cancelled
+	so_items = frappe.get_all("Sales Order Item",
+		filters={
+			"item_code": item_code,
+			"docstatus": 1
+		},
+		fields=["parent"])
+		
+	if not so_items:
+		return []
+		
+	so_names = [d.parent for d in so_items]
+	
+	# Find distinct customers from those Sales Orders
+	active_sos = frappe.get_all("Sales Order",
+		filters={
+			"name": ["in", so_names],
+			"status": ["not in", ["Completed", "Cancelled"]],
+			"customer": ["like", f"%{txt}%"] if txt else ["!=", ""]
+		},
+		fields=["customer"],
+		distinct=True,
+		limit=page_len,
+		start=start)
+		
+	customers = [d.customer for d in active_sos if d.customer]
+	if not customers:
+		return []
+		
+	results = []
+	for cust in set(customers):
+		cust_name = frappe.db.get_value("Customer", cust, "customer_name") or ""
+		results.append([cust, cust_name])
+		
+	return results
+
+@frappe.whitelist()
+def get_sales_orders_for_item(doctype, txt, searchfield, start, page_len, filters):
+	item_code = filters.get("item_code")
+	customer = filters.get("customer")
+	
+	if not item_code or not customer:
+		return []
+		
+	# Find all submitted Sales Orders with this item_code and customer that are not completed/cancelled
+	so_items = frappe.get_all("Sales Order Item",
+		filters={
+			"item_code": item_code,
+			"docstatus": 1
+		},
+		fields=["parent"])
+		
+	if not so_items:
+		return []
+		
+	so_names = [d.parent for d in so_items]
+	
+	orders = frappe.get_all("Sales Order",
+		filters={
+			"name": ["in", so_names],
+			"customer": customer,
+			"status": ["not in", ["Completed", "Cancelled"]],
+			"name": ["like", f"%{txt}%"] if txt else ["!=", ""]
+		},
+		fields=["name", "customer_name"],
+		limit=page_len,
+		start=start)
+		
+	return [[d.name, d.customer_name or ""] for d in orders]
+
+def validate_item_customer_sales_order(item_code, customer_name, sales_order=None, row_label=""):
+	if not item_code or not customer_name:
+		return None
+		
+	cust_id = frappe.db.get_value("Customer", {"name": customer_name}, "name")
+	if not cust_id:
+		cust_id = frappe.db.get_value("Customer", {"customer_name": customer_name}, "name")
+		
+	if not cust_id:
+		frappe.throw(_("{0}Item Code '{1}': Customer '{2}' does not exist in the system.").format(
+			f"{row_label}: " if row_label else "", item_code, customer_name
+		))
+		
+	so_items = frappe.get_all("Sales Order Item",
+		filters={
+			"item_code": item_code,
+			"docstatus": 1
+		},
+		fields=["parent"])
+		
+	if not so_items:
+		frappe.throw(_("{0}Item Code '{1}': No submitted Sales Order found in the system for this item.").format(
+			f"{row_label}: " if row_label else "", item_code
+		))
+		
+	so_names = [d.parent for d in so_items]
+	
+	active_sos = frappe.get_all("Sales Order",
+		filters={
+			"name": ["in", so_names],
+			"customer": cust_id,
+			"status": ["not in", ["Completed", "Cancelled"]]
+		},
+		fields=["name"])
+		
+	if not active_sos:
+		frappe.throw(_("{0}Item Code '{1}': Customer '{2}' does not have any pending Sales Orders for this item in the system.").format(
+			f"{row_label}: " if row_label else "", item_code, customer_name
+		))
+		
+	if sales_order:
+		so_exists = False
+		for active_so in active_sos:
+			if active_so.name == sales_order:
+				so_exists = True
+				break
+		if not so_exists:
+			frappe.throw(_("{0}Item Code '{1}': Sales Order '{2}' does not match customer '{3}' or is not an active Sales Order containing this item.").format(
+				f"{row_label}: " if row_label else "", item_code, sales_order, customer_name
+			))
+			
+	return cust_id

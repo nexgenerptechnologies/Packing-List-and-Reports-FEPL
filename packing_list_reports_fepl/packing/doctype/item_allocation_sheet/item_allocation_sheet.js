@@ -38,15 +38,40 @@ frappe.ui.form.on('Item Allocation Sheet', {
 		}
 	},
 	setup: function(frm) {
-		// Filter Sales Orders to only show pending orders for the selected customer
-		frm.set_query('sales_order', 'items', function(doc, cdt, cdn) {
+		// Filter Customer to only show customers who have pending Sales Orders containing the selected Item Code
+		frm.set_query('customer', 'items', function(doc, cdt, cdn) {
 			let row = frappe.get_doc(cdt, cdn);
-			if (row.customer) {
+			if (row.item_code) {
+				return {
+					query: "packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.get_customers_for_item",
+					filters: {
+						item_code: row.item_code
+					}
+				};
+			} else {
 				return {
 					filters: {
-						customer: row.customer,
-						docstatus: 1,
-						status: ['not in', ['Completed', 'Cancelled']]
+						name: ['in', []] // Show nothing if item is not selected
+					}
+				};
+			}
+		});
+
+		// Filter Sales Orders to only show pending orders for the selected Customer and Item Code
+		frm.set_query('sales_order', 'items', function(doc, cdt, cdn) {
+			let row = frappe.get_doc(cdt, cdn);
+			if (row.customer && row.item_code) {
+				return {
+					query: "packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.get_sales_orders_for_item",
+					filters: {
+						item_code: row.item_code,
+						customer: row.customer
+					}
+				};
+			} else {
+				return {
+					filters: {
+						name: ['in', []] // Show nothing if customer or item is not selected
 					}
 				};
 			}
