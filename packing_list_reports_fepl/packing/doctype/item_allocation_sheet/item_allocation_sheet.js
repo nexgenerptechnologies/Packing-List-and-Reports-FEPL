@@ -169,11 +169,19 @@ frappe.ui.form.on('Item Allocation Sheet', {
 		// 1. Download Template Buttons
 		if (frm.doc.status === 'Draft') {
 			frm.add_custom_button(__('Download Partner Template'), function() {
-				let url = '/api/method/packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.download_partner_template';
-				if (!frm.is_new()) {
+				const perform_download = () => {
+					let url = '/api/method/packing_list_reports_fepl.packing.doctype.item_allocation_sheet.item_allocation_sheet.download_partner_template';
 					url += '?docname=' + frm.doc.name;
+					window.open(url);
+				};
+				
+				if (frm.is_new() || frm.is_dirty()) {
+					frappe.confirm(__('The document must be saved first to register the fetched items in the template. Save and download?'), function() {
+						frm.save().then(perform_download);
+					});
+				} else {
+					perform_download();
 				}
-				window.open(url);
 			});
 		} else if (frm.doc.status === 'Pending Team Leader') {
 			frm.add_custom_button(__('Download Team Lead Template'), function() {
@@ -231,7 +239,7 @@ frappe.ui.form.on('Item Allocation Sheet', {
 		}
 
 		let is_manager = frappe.user.has_role('System Manager') || frappe.user.has_role('Sales Manager') || frappe.session.user === 'Administrator';
-		if (is_manager && frm.doc.status === 'Draft') {
+		if (frm.doc.status === 'Draft' && (is_manager || !frm.doc.sales_partner)) {
 			frm.set_df_property('sales_partner', 'read_only', 0);
 		} else {
 			frm.set_df_property('sales_partner', 'read_only', 1);
