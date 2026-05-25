@@ -233,15 +233,13 @@ def download_tl_template(docname=None):
 	for item in doc.items:
 		if not item.item_code:
 			continue
-		cust = item.customer or ""
-		key = (item.item_code, cust)
+		key = item.item_code
 		if key not in items_by_code:
 			spq = 1
 			if has_spq:
 				spq = frappe.db.get_value("Item", item.item_code, "custom_standard_packing_qty") or 1
 			items_by_code[key] = {
 				"item_code": item.item_code,
-				"customer": cust,
 				"item_name": item.item_name,
 				"description": item.description,
 				"total_qty": item.total_qty or 0,
@@ -251,11 +249,17 @@ def download_tl_template(docname=None):
 				"total_quota": 0
 			}
 		
-		partner_data = items_by_code[key]["partners"]
-		partner_data[item.sales_partner] = {
-			"request": item.allocation_request or 0,
-			"quota": item.allocated_qty if item.allocated_qty is not None else item.allocation_request or 0
-		}
+		p = item.sales_partner
+		if p not in items_by_code[key]["partners"]:
+			items_by_code[key]["partners"][p] = {
+				"request": 0,
+				"quota": 0
+			}
+			
+		partner_data = items_by_code[key]["partners"][p]
+		partner_data["request"] += item.allocation_request or 0
+		partner_data["quota"] += item.allocated_qty if item.allocated_qty is not None else 0
+		
 		items_by_code[key]["total_req"] += item.allocation_request or 0
 		items_by_code[key]["total_quota"] += item.allocated_qty if item.allocated_qty is not None else item.allocation_request or 0
 
@@ -277,29 +281,16 @@ def download_tl_template(docname=None):
 			p_name = frappe.db.get_value("Sales Partner", p, "sales_partner_name") or p
 		partner_display_names[p] = p_name
 		
-	headers = ["Item Code", "Customer Name", "Item Name", "Description", "Shipment Qty", "SPQ"]
+	headers = ["Item Code", "Item Name", "Description", "Shipment Qty", "SPQ"]
 	for p in all_partners:
 		headers.append(partner_display_names[p])
-	headers.extend(["Total Allocation Request", "Total TL Quota"])
+	headers.extend(["Total Request", "Remaining Qty"])
 	
 	ws.append(headers)
 	
-	# Check if Customer has customer_name field safely
-	has_cust_name = False
-	try:
-		has_cust_name = frappe.get_meta("Customer").get_field("customer_name") is not None
-	except Exception:
-		pass
-		
 	for key, details in items_by_code.items():
-		cust_id = details["customer"]
-		cust_display = cust_id or ""
-		if cust_id and has_cust_name:
-			cust_display = frappe.db.get_value("Customer", cust_id, "customer_name") or cust_id
-			
 		row_data = [
 			details["item_code"],
-			cust_display,
 			details["item_name"],
 			details["description"],
 			details["total_qty"],
@@ -308,8 +299,10 @@ def download_tl_template(docname=None):
 		for p in all_partners:
 			quota = details["partners"].get(p, {}).get("quota", 0)
 			row_data.append(quota)
+			
+		remaining_qty = details["total_qty"] - details["total_quota"]
 		row_data.append(details["total_req"])
-		row_data.append(details["total_quota"])
+		row_data.append(remaining_qty)
 		ws.append(row_data)
 		
 	from openpyxl.styles import Font, PatternFill, Alignment
@@ -322,7 +315,7 @@ def download_tl_template(docname=None):
 	for col_idx, cell in enumerate(ws[1], 1):
 		cell.font = header_font
 		cell.fill = header_fill
-		cell.alignment = center_align if col_idx not in [3, 4] else left_align
+		cell.alignment = center_align if col_idx not in [2, 3] else left_align
 		
 	for col in ws.columns:
 		vals = [cell.value for cell in col if cell.value is not None]
@@ -508,13 +501,7 @@ def upload_tl_excel(docname):
 				
 		item_code_idx = headers_lower.index("item code")
 		
-		customer_idx = None
-		if "customer name" in headers_lower:
-			customer_idx = headers_lower.index("customer name")
-		elif "customer" in headers_lower:
-			customer_idx = headers_lower.index("customer")
-		
-		static_cols = ["item code", "customer name", "customer", "item name", "description", "shipment qty", "spq", "total allocation request", "tl quota", "total tl quota", "total quota", "total allocation"]
+		static_cols = ["item code", "item name", "description", "shipment qty", "spq", "total request", "remaining qty"]
 		
 		partner_cols = []
 		for idx, h in enumerate(raw_headers):
@@ -534,10 +521,6 @@ def upload_tl_excel(docname):
 			if not item_code:
 				continue
 				
-			row_cust = ""
-			if customer_idx is not None and customer_idx < len(row):
-				row_cust = str(row[customer_idx] or "").strip()
-				
 			for p_col in partner_cols:
 				partner_name = p_col["partner_name"]
 				val_idx = p_col["index"]
@@ -546,12 +529,11 @@ def upload_tl_excel(docname):
 				if val_idx < len(row):
 					val = flt(row[val_idx])
 					
-				# Find all matching child rows
+				# Find all matching child rows purely by item_code and sales_partner
 				matching_children = []
 				for child in doc.items:
 					if (normalize_str(child.item_code) == normalize_str(item_code) and
-						partners_match(child.sales_partner, partner_name) and
-						customers_match(child.customer, row_cust)):
+						partners_match(child.sales_partner, partner_name)):
 						matching_children.append(child)
 						
 				if len(matching_children) == 1:
