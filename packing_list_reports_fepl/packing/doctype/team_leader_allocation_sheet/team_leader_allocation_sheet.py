@@ -216,12 +216,17 @@ def get_item_spqs(docname, item_codes=None):
 			for code in item_codes:
 				spqs[code] = 1
 				
-	# Fetch all active Sales Partners
+	# Fetch all active Sales Partners defensively (avoiding OperationalError if sales_partner_name column is missing)
 	meta = frappe.get_meta("Sales Partner")
 	filters = {}
 	if meta.has_field("disabled"):
 		filters["disabled"] = 0
-	partners = frappe.get_all("Sales Partner", filters=filters, order_by="name asc", fields=["name", "sales_partner_name"])
+		
+	fields = ["name"]
+	if meta.has_field("sales_partner_name"):
+		fields.append("sales_partner_name")
+		
+	partners = frappe.get_all("Sales Partner", filters=filters, order_by="name asc", fields=fields)
 	
 	return {
 		"spqs": spqs,
@@ -235,24 +240,24 @@ def download_tl_template(docname=None):
 		
 	doc = frappe.get_doc("Team Leader Allocation Sheet", docname)
 	
-	# Fetch all active Sales Partners in ERPNext
-	has_sp_name = False
-	try:
-		has_sp_name = frappe.get_meta("Sales Partner").get_field("sales_partner_name") is not None
-	except Exception:
-		pass
-		
+	# Fetch all active Sales Partners defensively (avoiding OperationalError if sales_partner_name column is missing)
 	meta = frappe.get_meta("Sales Partner")
 	filters = {}
 	if meta.has_field("disabled"):
 		filters["disabled"] = 0
-	db_partners = frappe.get_all("Sales Partner", filters=filters, order_by="name asc", fields=["name", "sales_partner_name"])
+		
+	fields = ["name"]
+	has_sp_name = meta.has_field("sales_partner_name")
+	if has_sp_name:
+		fields.append("sales_partner_name")
+		
+	db_partners = frappe.get_all("Sales Partner", filters=filters, order_by="name asc", fields=fields)
 	all_partners = [p.name for p in db_partners]
 	
 	partner_display_names = {}
 	for p in db_partners:
 		p_name = p.name
-		if has_sp_name and p.sales_partner_name:
+		if has_sp_name and p.get("sales_partner_name"):
 			p_name = p.sales_partner_name
 		partner_display_names[p.name] = p_name
 	
