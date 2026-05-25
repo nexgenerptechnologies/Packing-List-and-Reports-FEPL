@@ -72,7 +72,7 @@ class TeamLeaderAllocationSheet(Document):
 			frappe.throw(_('Team Leader Allocation Sheet is disabled in Packing List Settings.'))
 		
 		# Quota validation runs ONLY when the document status is set to "Approved".
-		# During draft stages (e.g. Fetching requests), Sales Partners are allowed to have requested quantities
+		# During draft stages, Sales Partners are allowed to have requested quantities
 		# whose sum exceeds shipment qty, and the Team Leader can fetch them without any validation crash.
 		if self.status == "Approved":
 			items_by_code = {}
@@ -83,16 +83,19 @@ class TeamLeaderAllocationSheet(Document):
 					items_by_code[item.item_code] = {
 						"item_name": item.item_name,
 						"total_qty": flt(item.total_qty),
-						"allocated_sum": 0.0
+						"partner_quotas": {}
 					}
-				items_by_code[item.item_code]["allocated_sum"] += flt(item.allocated_qty)
+				if item.sales_partner:
+					# Do not sum split rows of the same partner! The partner's quota is the uniform allocated_qty value!
+					items_by_code[item.item_code]["partner_quotas"][item.sales_partner] = flt(item.allocated_qty)
 			
 			errors = []
 			for code, details in items_by_code.items():
-				if details["allocated_sum"] > details["total_qty"]:
+				allocated_sum = sum(details["partner_quotas"].values())
+				if allocated_sum > details["total_qty"]:
 					errors.append(
 						_("For Item {0} ({1}), total allocated quota ({2}) cannot exceed Shipment Qty ({3}).")
-						.format(code, details["item_name"], details["allocated_sum"], details["total_qty"])
+						.format(code, details["item_name"], allocated_sum, details["total_qty"])
 					)
 			
 			if errors:
@@ -153,23 +156,16 @@ def distribute_tl_quotas(docname):
 	if doc.status == "Approved":
 		frappe.throw(_("Quotas have already been approved and distributed."))
 		
-	# Calculate total allocated quota by item_code
-	totals_by_item = {}
-	for item in doc.items:
-		if item.item_code:
-			totals_by_item[item.item_code] = totals_by_item.get(item.item_code, 0.0) + flt(item.allocated_qty)
-			
 	updated_docs = set()
 	
 	for item in doc.items:
 		if item.source_doc and item.source_row:
-			total_quota = totals_by_item.get(item.item_code, 0.0)
 			rows_list = item.source_row.split(",")
 			for r_name in rows_list:
 				r_name = r_name.strip()
 				if r_name and frappe.db.exists("Partner Allocation Detail", r_name):
-					# Set the allocated_qty of each individual row in the Sales Partner sheet to the TOTAL quota!
-					frappe.db.set_value("Partner Allocation Detail", r_name, "allocated_qty", total_quota)
+					# Directly set the allocated_qty of the Sales Partner sheet row to the Team Leader row's allocated_qty (NO distribution!)
+					frappe.db.set_value("Partner Allocation Detail", r_name, "allocated_qty", item.allocated_qty)
 					
 			updated_docs.add(item.source_doc)
 			
@@ -208,7 +204,7 @@ def get_item_spqs(docname, item_codes=None):
 			for code in item_codes:
 				spqs[code] = 1
 				
-	# Fetch all active Sales Partners defensively (avoiding OperationalError if sales_partner_name column is missing)
+	# Fetch all active Sales Partners defensively
 	meta = frappe.get_meta("Sales Partner")
 	filters = {}
 	if meta.has_field("disabled"):
@@ -232,7 +228,7 @@ def download_tl_template(docname=None):
 		
 	doc = frappe.get_doc("Team Leader Allocation Sheet", docname)
 	
-	# Fetch all active Sales Partners defensively (avoiding OperationalError if sales_partner_name column is missing)
+	# Fetch all active Sales Partners defensively
 	meta = frappe.get_meta("Sales Partner")
 	filters = {}
 	if meta.has_field("disabled"):
@@ -285,10 +281,10 @@ def download_tl_template(docname=None):
 			
 		partner_data = items_by_code[key]["partners"][p]
 		partner_data["request"] += item.allocation_request or 0
-		partner_data["quota"] += item.allocated_qty if item.allocated_qty is not None else 0
+		// Keep track of the partner's unique quota for this item code directly without summing
+		partner_data["quota"] = item.allocated_qty if item.allocated_qty is not None else 0
 		
 		items_by_code[key]["total_req"] += item.allocation_request or 0
-		items_by_code[key]["total_quota"] += item.allocated_qty if item.allocated_qty is not None else 0
 
 	wb = openpyxl.Workbook()
 	ws = wb.active
@@ -313,7 +309,9 @@ def download_tl_template(docname=None):
 			quota = details["partners"].get(p, {}).get("quota", 0)
 			row_data.append(quota)
 			
-		remaining_qty = details["total_qty"] - details["total_quota"]
+		# Sum of unique partner quotas to find total quota for this item
+		total_quota_val = sum(p_data.get("quota", 0) for p_data in details["partners"].values())
+		remaining_qty = details["total_qty"] - total_quota_val
 		row_data.append(details["total_req"])
 		row_data.append(remaining_qty)
 		ws.append(row_data)
@@ -490,19 +488,9 @@ def upload_tl_excel(docname):
 					customers_match(child.customer, row_cust)):
 					matching_children.append(child)
 					
-			if len(matching_children) == 1:
-				matching_children[0].allocated_qty = val
-				updated_count += 1
-			elif len(matching_children) > 1:
-				total_requested = sum(flt(c.allocation_request) for c in matching_children) or 1.0
-				remaining_val = val
-				for idx, child in enumerate(matching_children):
-					if idx == len(matching_children) - 1:
-						child.allocated_qty = remaining_val
-					else:
-						share = flt((flt(child.allocation_request) / total_requested) * val)
-						child.allocated_qty = share
-						remaining_val -= share
+			if len(matching_children) > 0:
+				for child in matching_children:
+					child.allocated_qty = val
 					updated_count += 1
 					
 		doc.save()
@@ -549,19 +537,10 @@ def upload_tl_excel(docname):
 						partners_match(child.sales_partner, partner_name)):
 						matching_children.append(child)
 						
-				if len(matching_children) == 1:
-					matching_children[0].allocated_qty = val
-					updated_count += 1
-				elif len(matching_children) > 1:
-					total_requested = sum(flt(c.allocation_request) for c in matching_children) or 1.0
-					remaining_val = val
-					for idx, child in enumerate(matching_children):
-						if idx == len(matching_children) - 1:
-							child.allocated_qty = remaining_val
-						else:
-							share = flt((flt(child.allocation_request) / total_requested) * val)
-							child.allocated_qty = share
-							remaining_val -= share
+				if len(matching_children) > 0:
+					# Directly set the allocated quota to all matching split rows in the child table (NO division or distribution!)
+					for child in matching_children:
+						child.allocated_qty = val
 						updated_count += 1
 				elif val > 0:
 					# No existing child rows for this partner and item! Create a new row!

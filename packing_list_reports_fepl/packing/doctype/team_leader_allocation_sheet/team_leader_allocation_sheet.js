@@ -235,11 +235,11 @@ function build_matrix_html(frm, wrapper, spq_cache, all_active_partners) {
 			};
 		}
 		items_by_code[key].partners[p].allocation_request += item.allocation_request || 0;
-		items_by_code[key].partners[p].allocated_qty += item.allocated_qty || 0;
+		// Instead of summing across split rows, the allocated quota is the uniform value stored in the row!
+		items_by_code[key].partners[p].allocated_qty = item.allocated_qty || 0;
 		items_by_code[key].partners[p].rows.push(item);
 		
 		items_by_code[key].total_req += item.allocation_request || 0;
-		items_by_code[key].total_quota += item.allocated_qty || 0;
 	});
 
 	let style_html = `
@@ -343,12 +343,16 @@ function build_matrix_html(frm, wrapper, spq_cache, all_active_partners) {
 		let details = items_by_code[key];
 		let item_code = details.item_code;
 		
-		// Calculate remaining quantity by summing ALL quotas for this item code across all rows
+		// Sum unique quota per Sales Partner to find total allocated quota for this item code
 		let total_allocated_for_item = 0;
+		let partner_quotas = {};
 		frm.doc.items.forEach(child => {
-			if (child.item_code === item_code) {
-				total_allocated_for_item += child.allocated_qty || 0;
+			if (child.item_code === item_code && child.sales_partner) {
+				partner_quotas[child.sales_partner] = child.allocated_qty || 0;
 			}
+		});
+		Object.values(partner_quotas).forEach(q => {
+			total_allocated_for_item += q;
 		});
 		
 		let remaining_qty = details.total_qty - total_allocated_for_item;
@@ -453,31 +457,10 @@ function build_matrix_html(frm, wrapper, spq_cache, all_active_partners) {
 		
 		if (row_names_str) {
 			let row_names = row_names_str.split(",");
-			if (row_names.length === 1) {
-				frappe.model.set_value("Team Leader Allocation Detail", row_names[0], "allocated_qty", val);
-			} else {
-				let total_requested = 0;
-				let rows_meta = [];
-				row_names.forEach(r_name => {
-					let row_doc = frappe.model.get_doc("Team Leader Allocation Detail", r_name);
-					if (row_doc) {
-						total_requested += row_doc.allocation_request || 0;
-						rows_meta.push(row_doc);
-					}
-				});
-				if (total_requested === 0) total_requested = 1;
-				
-				let remaining_val = val;
-				rows_meta.forEach((row_doc, idx) => {
-					if (idx === rows_meta.length - 1) {
-						frappe.model.set_value("Team Leader Allocation Detail", row_doc.name, "allocated_qty", remaining_val);
-					} else {
-						let share = (row_doc.allocation_request / total_requested) * val;
-						frappe.model.set_value("Team Leader Allocation Detail", row_doc.name, "allocated_qty", share);
-						remaining_val -= share;
-					}
-				});
-			}
+			// Write the full allocated quota to all matching split rows in the child table (NO division or distribution!)
+			row_names.forEach(r_name => {
+				frappe.model.set_value("Team Leader Allocation Detail", r_name, "allocated_qty", val);
+			});
 		} else if (val > 0) {
 			// No existing child row for this item and partner. Let's create one dynamically!
 			let item_code = input.data("item-code");
