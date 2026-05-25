@@ -30,7 +30,13 @@ def customers_match(c1, c2):
 		return True
 		
 	# Resolve both to customer_name for standard comparison if one is primary key ID and other is display name
-	if frappe.get_meta("Customer").has_field("customer_name"):
+	has_field = False
+	try:
+		has_field = frappe.get_meta("Customer").get_field("customer_name") is not None
+	except Exception:
+		pass
+		
+	if has_field:
 		name1 = frappe.db.get_value("Customer", c1, "customer_name") or c1
 		name2 = frappe.db.get_value("Customer", c2, "customer_name") or c2
 		return normalize_str(name1) == normalize_str(name2)
@@ -48,7 +54,13 @@ def partners_match(p1, p2):
 		return True
 		
 	# Resolve both to sales_partner_name for standard comparison if one is primary key ID and other is display name
-	if frappe.get_meta("Sales Partner").has_field("sales_partner_name"):
+	has_field = False
+	try:
+		has_field = frappe.get_meta("Sales Partner").get_field("sales_partner_name") is not None
+	except Exception:
+		pass
+		
+	if has_field:
 		name1 = frappe.db.get_value("Sales Partner", p1, "sales_partner_name") or p1
 		name2 = frappe.db.get_value("Sales Partner", p2, "sales_partner_name") or p2
 		return normalize_str(name1) == normalize_str(name2)
@@ -251,10 +263,18 @@ def download_tl_template(docname=None):
 	ws = wb.active
 	ws.title = "TL Quota Allocation"
 	
-	# Get human-readable partner display names for columns
+	# Get human-readable partner display names for columns (with defensive schema check)
 	partner_display_names = {}
+	has_sp_name = False
+	try:
+		has_sp_name = frappe.get_meta("Sales Partner").get_field("sales_partner_name") is not None
+	except Exception:
+		pass
+		
 	for p in all_partners:
-		p_name = frappe.db.get_value("Sales Partner", p, "sales_partner_name") or p
+		p_name = p
+		if has_sp_name:
+			p_name = frappe.db.get_value("Sales Partner", p, "sales_partner_name") or p
 		partner_display_names[p] = p_name
 		
 	headers = ["Item Code", "Customer Name", "Item Name", "Description", "Shipment Qty", "SPQ"]
@@ -264,9 +284,19 @@ def download_tl_template(docname=None):
 	
 	ws.append(headers)
 	
+	# Check if Customer has customer_name field safely
+	has_cust_name = False
+	try:
+		has_cust_name = frappe.get_meta("Customer").get_field("customer_name") is not None
+	except Exception:
+		pass
+		
 	for key, details in items_by_code.items():
 		cust_id = details["customer"]
-		cust_display = frappe.db.get_value("Customer", cust_id, "customer_name") or cust_id or ""
+		cust_display = cust_id or ""
+		if cust_id and has_cust_name:
+			cust_display = frappe.db.get_value("Customer", cust_id, "customer_name") or cust_id
+			
 		row_data = [
 			details["item_code"],
 			cust_display,
