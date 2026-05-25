@@ -539,5 +539,4 @@ def upload_tl_excel(docname):
 					matches.append(f"child(item='{child.item_code}', partner='{child.sales_partner}') -> item_match={it_match}, partner_match={p_match}")
 				debug_lines.append(f"<b>Matches for partner '{p_name}'</b>:<br>" + "<br>".join(matches[:10]))
 				
-		frappe.msgprint("<br>".join(debug_lines))
-		frappe.throw("Stopping for debug. Please send a screenshot of this popup!")
+		frappe.throw("<br>".join(debug_lines))
