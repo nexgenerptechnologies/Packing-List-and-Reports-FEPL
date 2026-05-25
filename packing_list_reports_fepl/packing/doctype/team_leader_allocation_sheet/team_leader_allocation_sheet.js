@@ -1,4 +1,4 @@
-﻿// -*- coding: utf-8 -*-
+// -*- coding: utf-8 -*-
 // Copyright (c) 2026, Administrator and contributors
 // For license information, please see license.txt
 
@@ -43,11 +43,17 @@ frappe.ui.form.on('Team Leader Allocation Sheet', {
 			}).addClass('btn-primary');
 
 			// Download Template
-			frm.add_custom_button(__('Download Template'), function() {
+			frm.add_custom_button(__('Download Request Template'), function() {
+				let url = '/api/method/packing_list_reports_fepl.packing.doctype.team_leader_allocation_sheet.team_leader_allocation_sheet.download_tl_request_template';
+				if (!frm.is_new()) url += '?docname=' + frm.doc.name;
+				window.open(url);
+			}, __('Download Template'));
+
+			frm.add_custom_button(__('Download Matrix Template'), function() {
 				let url = '/api/method/packing_list_reports_fepl.packing.doctype.team_leader_allocation_sheet.team_leader_allocation_sheet.download_tl_template';
 				if (!frm.is_new()) url += '?docname=' + frm.doc.name;
 				window.open(url);
-			});
+			}, __('Download Template'));
 
 			// Upload Excel Data
 			if (frm.doc.excel_file) {

@@ -339,6 +339,82 @@ def download_tl_template(docname=None):
 	frappe.response["type"] = "binary"
 
 @frappe.whitelist()
+def download_tl_request_template(docname=None):
+	if not docname:
+		frappe.throw(_("No document name provided."))
+		
+	doc = frappe.get_doc("Team Leader Allocation Sheet", docname)
+	
+	wb = openpyxl.Workbook()
+	ws = wb.active
+	ws.title = "TL Request Allocation"
+	
+	headers = ["Shipment", "Item Code", "Customer Name", "Item Name", "Description", "Sales Partner", "Allocation Request", "TL Quota"]
+	ws.append(headers)
+	
+	# Check if Customer and Sales Partner have display names safely
+	has_cust_name = False
+	try:
+		has_cust_name = frappe.get_meta("Customer").get_field("customer_name") is not None
+	except Exception:
+		pass
+		
+	has_sp_name = False
+	try:
+		has_sp_name = frappe.get_meta("Sales Partner").get_field("sales_partner_name") is not None
+	except Exception:
+		pass
+		
+	for item in doc.items:
+		cust_id = item.customer
+		cust_display = cust_id or ""
+		if cust_id and has_cust_name:
+			cust_display = frappe.db.get_value("Customer", cust_id, "customer_name") or cust_id
+			
+		partner_id = item.sales_partner
+		partner_display = partner_id or ""
+		if partner_id and has_sp_name:
+			partner_display = frappe.db.get_value("Sales Partner", partner_id, "sales_partner_name") or partner_id
+			
+		row_data = [
+			item.shipment or "",
+			item.item_code or "",
+			cust_display,
+			item.item_name or "",
+			item.description or "",
+			partner_display,
+			item.allocation_request or 0,
+			item.allocated_qty if item.allocated_qty is not None else 0
+		]
+		ws.append(row_data)
+		
+	from openpyxl.styles import Font, PatternFill, Alignment
+	
+	header_fill = PatternFill(start_color="1F497D", end_color="1F497D", fill_type="solid")
+	header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+	center_align = Alignment(horizontal="center", vertical="center")
+	left_align = Alignment(horizontal="left", vertical="center")
+	
+	for col_idx, cell in enumerate(ws[1], 1):
+		cell.font = header_font
+		cell.fill = header_fill
+		cell.alignment = center_align if col_idx not in [3, 4, 5] else left_align
+		
+	for col in ws.columns:
+		vals = [cell.value for cell in col if cell.value is not None]
+		max_len = max(len(str(v)) for v in vals) if vals else 10
+		col_letter = openpyxl.utils.get_column_letter(col[0].column)
+		ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+		
+	output = BytesIO()
+	wb.save(output)
+	output.seek(0)
+	
+	frappe.response["filename"] = f"TL_Request_Allocation_{docname}.xlsx"
+	frappe.response["filecontent"] = output.getvalue()
+	frappe.response["type"] = "binary"
+
+@frappe.whitelist()
 def upload_tl_excel(docname):
 	doc = frappe.get_doc("Team Leader Allocation Sheet", docname)
 	if doc.status == "Approved":
@@ -360,49 +436,46 @@ def upload_tl_excel(docname):
 	raw_headers = [str(h).strip() for h in rows[0]]
 	headers_lower = [h.lower() for h in raw_headers]
 	
-	if "item code" not in headers_lower:
-		frappe.throw(_("Excel template is missing required column: Item Code"))
+	is_request_template = "sales partner" in headers_lower and ("tl quota" in headers_lower or "allocated qty" in headers_lower)
+	
+	if is_request_template:
+		if "item code" not in headers_lower:
+			frappe.throw(_("Excel template is missing required column: Item Code"))
 			
-	item_code_idx = headers_lower.index("item code")
-	
-	customer_idx = None
-	if "customer name" in headers_lower:
-		customer_idx = headers_lower.index("customer name")
-	elif "customer" in headers_lower:
-		customer_idx = headers_lower.index("customer")
-	
-	static_cols = ["item code", "customer name", "customer", "item name", "description", "shipment qty", "spq", "total allocation request", "tl quota", "total tl quota", "total quota", "total allocation"]
-	
-	partner_cols = []
-	for idx, h in enumerate(raw_headers):
-		h_lower = h.lower()
-		if h_lower not in static_cols:
-			partner_cols.append({
-				"partner_name": h,
-				"index": idx
-			})
-			
-	if not partner_cols:
-		frappe.throw(_("Excel sheet does not contain any Sales Partner columns."))
+		item_code_idx = headers_lower.index("item code")
+		partner_idx = headers_lower.index("sales partner")
 		
-	updated_count = 0
-	for row in rows[1:]:
-		item_code = str(row[item_code_idx] or "").strip()
-		if not item_code:
-			continue
+		customer_idx = None
+		if "customer name" in headers_lower:
+			customer_idx = headers_lower.index("customer name")
+		elif "customer" in headers_lower:
+			customer_idx = headers_lower.index("customer")
 			
-		row_cust = ""
-		if customer_idx is not None and customer_idx < len(row):
-			row_cust = str(row[customer_idx] or "").strip()
+		quota_idx = None
+		if "tl quota" in headers_lower:
+			quota_idx = headers_lower.index("tl quota")
+		elif "allocated qty" in headers_lower:
+			quota_idx = headers_lower.index("allocated qty")
 			
-		for p_col in partner_cols:
-			partner_name = p_col["partner_name"]
-			val_idx = p_col["index"]
+		if quota_idx is None:
+			frappe.throw(_("Excel template is missing required column: TL Quota"))
 			
-			val = 0
-			if val_idx < len(row):
-				val = flt(row[val_idx])
+		updated_count = 0
+		for row in rows[1:]:
+			item_code = str(row[item_code_idx] or "").strip()
+			if not item_code:
+				continue
 				
+			partner_name = str(row[partner_idx] or "").strip()
+			if not partner_name:
+				continue
+				
+			row_cust = ""
+			if customer_idx is not None and customer_idx < len(row):
+				row_cust = str(row[customer_idx] or "").strip()
+				
+			val = flt(row[quota_idx])
+			
 			# Find all matching child rows
 			matching_children = []
 			for child in doc.items:
@@ -426,5 +499,75 @@ def upload_tl_excel(docname):
 						remaining_val -= share
 					updated_count += 1
 					
-	doc.save()
-	return f"Successfully updated {updated_count} partner quota entries from Excel."
+		doc.save()
+		return f"Successfully updated {updated_count} partner quota entries from Request Excel."
+		
+	else:
+		if "item code" not in headers_lower:
+			frappe.throw(_("Excel template is missing required column: Item Code"))
+				
+		item_code_idx = headers_lower.index("item code")
+		
+		customer_idx = None
+		if "customer name" in headers_lower:
+			customer_idx = headers_lower.index("customer name")
+		elif "customer" in headers_lower:
+			customer_idx = headers_lower.index("customer")
+		
+		static_cols = ["item code", "customer name", "customer", "item name", "description", "shipment qty", "spq", "total allocation request", "tl quota", "total tl quota", "total quota", "total allocation"]
+		
+		partner_cols = []
+		for idx, h in enumerate(raw_headers):
+			h_lower = h.lower()
+			if h_lower not in static_cols:
+				partner_cols.append({
+					"partner_name": h,
+					"index": idx
+				})
+				
+		if not partner_cols:
+			frappe.throw(_("Excel sheet does not contain any Sales Partner columns."))
+			
+		updated_count = 0
+		for row in rows[1:]:
+			item_code = str(row[item_code_idx] or "").strip()
+			if not item_code:
+				continue
+				
+			row_cust = ""
+			if customer_idx is not None and customer_idx < len(row):
+				row_cust = str(row[customer_idx] or "").strip()
+				
+			for p_col in partner_cols:
+				partner_name = p_col["partner_name"]
+				val_idx = p_col["index"]
+				
+				val = 0
+				if val_idx < len(row):
+					val = flt(row[val_idx])
+					
+				# Find all matching child rows
+				matching_children = []
+				for child in doc.items:
+					if (normalize_str(child.item_code) == normalize_str(item_code) and
+						partners_match(child.sales_partner, partner_name) and
+						customers_match(child.customer, row_cust)):
+						matching_children.append(child)
+						
+				if len(matching_children) == 1:
+					matching_children[0].allocated_qty = val
+					updated_count += 1
+				elif len(matching_children) > 1:
+					total_requested = sum(flt(c.allocation_request) for c in matching_children) or 1.0
+					remaining_val = val
+					for idx, child in enumerate(matching_children):
+						if idx == len(matching_children) - 1:
+							child.allocated_qty = remaining_val
+						else:
+							share = flt((flt(child.allocation_request) / total_requested) * val)
+							child.allocated_qty = share
+							remaining_val -= share
+						updated_count += 1
+						
+		doc.save()
+		return f"Successfully updated {updated_count} partner quota entries from Matrix Excel."
