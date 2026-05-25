@@ -431,6 +431,11 @@ def upload_tl_excel(docname):
 	
 	is_request_template = "sales partner" in headers_lower and ("tl quota" in headers_lower or "allocated qty" in headers_lower)
 	
+	# DEBUG: Let's build a debug report
+	debug_lines = []
+	debug_lines.append(f"<b>is_request_template</b>: {is_request_template}")
+	debug_lines.append(f"<b>Headers parsed</b>: {raw_headers}")
+	
 	if is_request_template:
 		if "item code" not in headers_lower:
 			frappe.throw(_("Excel template is missing required column: Item Code"))
@@ -500,7 +505,6 @@ def upload_tl_excel(docname):
 			frappe.throw(_("Excel template is missing required column: Item Code"))
 				
 		item_code_idx = headers_lower.index("item code")
-		
 		static_cols = ["item code", "item name", "description", "shipment qty", "spq", "total request", "remaining qty"]
 		
 		partner_cols = []
@@ -511,45 +515,29 @@ def upload_tl_excel(docname):
 					"partner_name": h,
 					"index": idx
 				})
-				
-		if not partner_cols:
-			frappe.throw(_("Excel sheet does not contain any Sales Partner columns."))
-			
-		updated_count = 0
-		for row in rows[1:]:
-			item_code = str(row[item_code_idx] or "").strip()
-			if not item_code:
-				continue
-				
+		
+		debug_lines.append(f"<b>static_cols</b>: {static_cols}")
+		debug_lines.append(f"<b>partner_cols</b>: {partner_cols}")
+		
+		# Let's inspect doc.items
+		doc_items_list = []
+		for child in doc.items:
+			doc_items_list.append(f"item_code='{child.item_code}', sales_partner='{child.sales_partner}'")
+		debug_lines.append(f"<b>doc.items</b> ({len(doc.items)} rows):<br>" + "<br>".join(doc_items_list[:15]))
+		
+		# Test matching for first row
+		if len(rows) > 1:
+			test_row = rows[1]
+			test_item = str(test_row[item_code_idx] or "").strip()
+			debug_lines.append(f"<b>Test Row 1</b>: item_code='{test_item}'")
 			for p_col in partner_cols:
-				partner_name = p_col["partner_name"]
-				val_idx = p_col["index"]
-				
-				val = 0
-				if val_idx < len(row):
-					val = flt(row[val_idx])
-					
-				# Find all matching child rows purely by item_code and sales_partner
-				matching_children = []
+				p_name = p_col["partner_name"]
+				matches = []
 				for child in doc.items:
-					if (normalize_str(child.item_code) == normalize_str(item_code) and
-						partners_match(child.sales_partner, partner_name)):
-						matching_children.append(child)
-						
-				if len(matching_children) == 1:
-					matching_children[0].allocated_qty = val
-					updated_count += 1
-				elif len(matching_children) > 1:
-					total_requested = sum(flt(c.allocation_request) for c in matching_children) or 1.0
-					remaining_val = val
-					for idx, child in enumerate(matching_children):
-						if idx == len(matching_children) - 1:
-							child.allocated_qty = remaining_val
-						else:
-							share = flt((flt(child.allocation_request) / total_requested) * val)
-							child.allocated_qty = share
-							remaining_val -= share
-						updated_count += 1
-						
-		doc.save()
-		return f"Successfully updated {updated_count} partner quota entries from Matrix Excel."
+					it_match = normalize_str(child.item_code) == normalize_str(test_item)
+					p_match = partners_match(child.sales_partner, p_name)
+					matches.append(f"child(item='{child.item_code}', partner='{child.sales_partner}') -> item_match={it_match}, partner_match={p_match}")
+				debug_lines.append(f"<b>Matches for partner '{p_name}'</b>:<br>" + "<br>".join(matches[:10]))
+				
+		frappe.msgprint("<br>".join(debug_lines))
+		frappe.throw("Stopping for debug. Please send a screenshot of this popup!")
