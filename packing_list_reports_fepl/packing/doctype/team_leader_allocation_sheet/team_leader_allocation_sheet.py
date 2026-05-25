@@ -153,32 +153,24 @@ def distribute_tl_quotas(docname):
 	if doc.status == "Approved":
 		frappe.throw(_("Quotas have already been approved and distributed."))
 		
+	# Calculate total allocated quota by item_code
+	totals_by_item = {}
+	for item in doc.items:
+		if item.item_code:
+			totals_by_item[item.item_code] = totals_by_item.get(item.item_code, 0.0) + flt(item.allocated_qty)
+			
 	updated_docs = set()
 	
 	for item in doc.items:
 		if item.source_doc and item.source_row:
+			total_quota = totals_by_item.get(item.item_code, 0.0)
 			rows_list = item.source_row.split(",")
-			# Set the allocated_qty of each individual row in the child table
-			if len(rows_list) == 1:
-				r_name = rows_list[0].strip()
+			for r_name in rows_list:
+				r_name = r_name.strip()
 				if r_name and frappe.db.exists("Partner Allocation Detail", r_name):
-					frappe.db.set_value("Partner Allocation Detail", r_name, "allocated_qty", item.allocated_qty)
-			else:
-				# If there are multiple rows consolidated, distribute the allocated qty proportionally
-				total_requested = flt(frappe.db.get_value("Partner Allocation Detail", {"name": ["in", rows_list]}, "sum(allocation_request)")) or 1.0
-				remaining_allocated = flt(item.allocated_qty)
-				for i, r_name in enumerate(rows_list):
-					r_name = r_name.strip()
-					if not r_name or not frappe.db.exists("Partner Allocation Detail", r_name):
-						continue
-					if i == len(rows_list) - 1:
-						frappe.db.set_value("Partner Allocation Detail", r_name, "allocated_qty", remaining_allocated)
-					else:
-						req = flt(frappe.db.get_value("Partner Allocation Detail", r_name, "allocation_request"))
-						share = flt((req / total_requested) * item.allocated_qty)
-						frappe.db.set_value("Partner Allocation Detail", r_name, "allocated_qty", share)
-						remaining_allocated -= share
-						
+					# Set the allocated_qty of each individual row in the Sales Partner sheet to the TOTAL quota!
+					frappe.db.set_value("Partner Allocation Detail", r_name, "allocated_qty", total_quota)
+					
 			updated_docs.add(item.source_doc)
 			
 	for s_name in updated_docs:
