@@ -215,7 +215,18 @@ def get_item_spqs(docname, item_codes=None):
 		else:
 			for code in item_codes:
 				spqs[code] = 1
-	return spqs
+				
+	# Fetch all active Sales Partners
+	meta = frappe.get_meta("Sales Partner")
+	filters = {}
+	if meta.has_field("disabled"):
+		filters["disabled"] = 0
+	partners = frappe.get_all("Sales Partner", filters=filters, order_by="name asc", fields=["name", "sales_partner_name"])
+	
+	return {
+		"spqs": spqs,
+		"partners": partners
+	}
 
 @frappe.whitelist()
 def download_tl_template(docname=None):
@@ -224,9 +235,28 @@ def download_tl_template(docname=None):
 		
 	doc = frappe.get_doc("Team Leader Allocation Sheet", docname)
 	
-	items_by_code = {}
-	all_partners = sorted(list(set([item.sales_partner for item in doc.items if item.sales_partner])))
+	# Fetch all active Sales Partners in ERPNext
+	has_sp_name = False
+	try:
+		has_sp_name = frappe.get_meta("Sales Partner").get_field("sales_partner_name") is not None
+	except Exception:
+		pass
+		
+	meta = frappe.get_meta("Sales Partner")
+	filters = {}
+	if meta.has_field("disabled"):
+		filters["disabled"] = 0
+	db_partners = frappe.get_all("Sales Partner", filters=filters, order_by="name asc", fields=["name", "sales_partner_name"])
+	all_partners = [p.name for p in db_partners]
 	
+	partner_display_names = {}
+	for p in db_partners:
+		p_name = p.name
+		if has_sp_name and p.sales_partner_name:
+			p_name = p.sales_partner_name
+		partner_display_names[p.name] = p_name
+	
+	items_by_code = {}
 	# Defensive check: does the custom field exist on Item?
 	has_spq = frappe.get_meta("Item").has_field("custom_standard_packing_qty")
 	
@@ -261,26 +291,12 @@ def download_tl_template(docname=None):
 		partner_data["quota"] += item.allocated_qty if item.allocated_qty is not None else 0
 		
 		items_by_code[key]["total_req"] += item.allocation_request or 0
-		items_by_code[key]["total_quota"] += item.allocated_qty if item.allocated_qty is not None else item.allocation_request or 0
+		items_by_code[key]["total_quota"] += item.allocated_qty if item.allocated_qty is not None else 0
 
 	wb = openpyxl.Workbook()
 	ws = wb.active
 	ws.title = "TL Quota Allocation"
 	
-	# Get human-readable partner display names for columns (with defensive schema check)
-	partner_display_names = {}
-	has_sp_name = False
-	try:
-		has_sp_name = frappe.get_meta("Sales Partner").get_field("sales_partner_name") is not None
-	except Exception:
-		pass
-		
-	for p in all_partners:
-		p_name = p
-		if has_sp_name:
-			p_name = frappe.db.get_value("Sales Partner", p, "sales_partner_name") or p
-		partner_display_names[p] = p_name
-		
 	headers = ["Item Code", "Item Name", "Description", "Shipment Qty", "SPQ"]
 	for p in all_partners:
 		headers.append(partner_display_names[p])
@@ -431,11 +447,6 @@ def upload_tl_excel(docname):
 	
 	is_request_template = "sales partner" in headers_lower and ("tl quota" in headers_lower or "allocated qty" in headers_lower)
 	
-	# DEBUG: Let's build a debug report
-	debug_lines = []
-	debug_lines.append(f"<b>is_request_template</b>: {is_request_template}")
-	debug_lines.append(f"<b>Headers parsed</b>: {raw_headers}")
-	
 	if is_request_template:
 		if "item code" not in headers_lower:
 			frappe.throw(_("Excel template is missing required column: Item Code"))
@@ -505,6 +516,7 @@ def upload_tl_excel(docname):
 			frappe.throw(_("Excel template is missing required column: Item Code"))
 				
 		item_code_idx = headers_lower.index("item code")
+		
 		static_cols = ["item code", "item name", "description", "shipment qty", "spq", "total request", "remaining qty"]
 		
 		partner_cols = []
@@ -515,28 +527,74 @@ def upload_tl_excel(docname):
 					"partner_name": h,
 					"index": idx
 				})
-		
-		debug_lines.append(f"<b>static_cols</b>: {static_cols}")
-		debug_lines.append(f"<b>partner_cols</b>: {partner_cols}")
-		
-		# Let's inspect doc.items
-		doc_items_list = []
-		for child in doc.items:
-			doc_items_list.append(f"item_code='{child.item_code}', sales_partner='{child.sales_partner}'")
-		debug_lines.append(f"<b>doc.items</b> ({len(doc.items)} rows):<br>" + "<br>".join(doc_items_list[:15]))
-		
-		# Test matching for first row
-		if len(rows) > 1:
-			test_row = rows[1]
-			test_item = str(test_row[item_code_idx] or "").strip()
-			debug_lines.append(f"<b>Test Row 1</b>: item_code='{test_item}'")
-			for p_col in partner_cols:
-				p_name = p_col["partner_name"]
-				matches = []
-				for child in doc.items:
-					it_match = normalize_str(child.item_code) == normalize_str(test_item)
-					p_match = partners_match(child.sales_partner, p_name)
-					matches.append(f"child(item='{child.item_code}', partner='{child.sales_partner}') -> item_match={it_match}, partner_match={p_match}")
-				debug_lines.append(f"<b>Matches for partner '{p_name}'</b>:<br>" + "<br>".join(matches[:10]))
 				
-		frappe.throw("<br>".join(debug_lines))
+		if not partner_cols:
+			frappe.throw(_("Excel sheet does not contain any Sales Partner columns."))
+			
+		updated_count = 0
+		for row in rows[1:]:
+			item_code = str(row[item_code_idx] or "").strip()
+			if not item_code:
+				continue
+				
+			for p_col in partner_cols:
+				partner_name = p_col["partner_name"]
+				val_idx = p_col["index"]
+				
+				val = 0
+				if val_idx < len(row):
+					val = flt(row[val_idx])
+					
+				# Find all matching child rows purely by item_code and sales_partner
+				matching_children = []
+				for child in doc.items:
+					if (normalize_str(child.item_code) == normalize_str(item_code) and
+						partners_match(child.sales_partner, partner_name)):
+						matching_children.append(child)
+						
+				if len(matching_children) == 1:
+					matching_children[0].allocated_qty = val
+					updated_count += 1
+				elif len(matching_children) > 1:
+					total_requested = sum(flt(c.allocation_request) for c in matching_children) or 1.0
+					remaining_val = val
+					for idx, child in enumerate(matching_children):
+						if idx == len(matching_children) - 1:
+							child.allocated_qty = remaining_val
+						else:
+							share = flt((flt(child.allocation_request) / total_requested) * val)
+							child.allocated_qty = share
+							remaining_val -= share
+						updated_count += 1
+				elif val > 0:
+					# No existing child rows for this partner and item! Create a new row!
+					child = doc.append("items", {})
+					child.item_code = item_code
+					
+					# Find the sales partner ID matching this partner_name
+					partner_id = partner_name
+					has_sp_name = False
+					try:
+						has_sp_name = frappe.get_meta("Sales Partner").get_field("sales_partner_name") is not None
+					except Exception:
+						pass
+					if has_sp_name:
+						res = frappe.db.get_value("Sales Partner", {"sales_partner_name": partner_name}, "name")
+						if res:
+							partner_id = res
+							
+					child.sales_partner = partner_id
+					child.allocated_qty = val
+					child.allocation_request = 0.0
+					
+					# Get item details from existing rows in doc.items
+					match_item = next((i for i in doc.items if i.item_code == item_code and i.item_name), None)
+					if match_item:
+						child.item_name = match_item.item_name
+						child.description = match_item.description
+						child.total_qty = match_item.total_qty
+						child.shipment = match_item.shipment
+					updated_count += 1
+						
+		doc.save()
+		return f"Successfully updated partner quota entries from Matrix Excel."

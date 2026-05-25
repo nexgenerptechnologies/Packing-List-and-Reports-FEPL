@@ -1,9 +1,8 @@
-// -*- coding: utf-8 -*-
 // Copyright (c) 2026, Administrator and contributors
 // For license information, please see license.txt
 
 frappe.ui.form.on('Team Leader Allocation Sheet', {
-	excel_file: function(frm) {
+	onload: function(frm) {
 		if (frm.doc.excel_file) {
 			frm.trigger('refresh');
 		}
@@ -94,7 +93,7 @@ frappe.ui.form.on('Team Leader Allocation Sheet', {
 					frappe.confirm(
 						__('Are you sure you want to approve and distribute these quotas to all Sales Partners? This will update their individual sheets and move them to Partner Finalization stage.'),
 						function() {
-							frm.save().then(() => {
+							let approve_action = function() {
 								frappe.call({
 									method: 'packing_list_reports_fepl.packing.doctype.team_leader_allocation_sheet.team_leader_allocation_sheet.distribute_tl_quotas',
 									args: { docname: frm.doc.name },
@@ -105,7 +104,12 @@ frappe.ui.form.on('Team Leader Allocation Sheet', {
 										}
 									}
 								});
-							});
+							};
+							if (frm.is_dirty()) {
+								frm.save(null, approve_action);
+							} else {
+								approve_action();
+							}
 						}
 					);
 				}).addClass('btn-success');
@@ -170,7 +174,7 @@ function render_allocation_matrix(frm) {
 		}
 	});
 
-	// Fetch SPQs from item master first
+	// Fetch SPQs and active Sales Partners from master first
 	frappe.call({
 		method: 'packing_list_reports_fepl.packing.doctype.team_leader_allocation_sheet.team_leader_allocation_sheet.get_item_spqs',
 		args: {
@@ -178,23 +182,34 @@ function render_allocation_matrix(frm) {
 			item_codes: item_codes
 		},
 		callback: function(r) {
-			let spq_cache = r.message || {};
-			build_matrix_html(frm, wrapper, spq_cache);
+			let spq_cache = r.message.spqs || {};
+			let all_active_partners = r.message.partners || [];
+			build_matrix_html(frm, wrapper, spq_cache, all_active_partners);
 		}
 	});
 }
 
-function build_matrix_html(frm, wrapper, spq_cache) {
+function build_matrix_html(frm, wrapper, spq_cache, all_active_partners) {
+	let partner_display_map = {};
 	let all_partners = [];
-	let items_by_code = {};
-
-	frm.doc.items.forEach(item => {
-		if (!item.item_code) return;
-		if (item.sales_partner && !all_partners.includes(item.sales_partner)) {
-			all_partners.push(item.sales_partner);
-		}
-	});
+	
+	if (all_active_partners && all_active_partners.length > 0) {
+		all_active_partners.forEach(p => {
+			all_partners.push(p.name);
+			partner_display_map[p.name] = p.sales_partner_name || p.name;
+		});
+	} else {
+		frm.doc.items.forEach(item => {
+			if (!item.item_code) return;
+			if (item.sales_partner && !all_partners.includes(item.sales_partner)) {
+				all_partners.push(item.sales_partner);
+				partner_display_map[item.sales_partner] = item.sales_partner;
+			}
+		});
+	}
 	all_partners.sort();
+
+	let items_by_code = {};
 
 	frm.doc.items.forEach(item => {
 		if (!item.item_code) return;
@@ -315,7 +330,7 @@ function build_matrix_html(frm, wrapper, spq_cache) {
 							<th style="text-align: right; width: 95px;">Shipment Qty</th>
 							<th style="text-align: center; width: 65px;">SPQ</th>
 							${all_partners.map(p => `
-								<th style="background: rgba(31, 73, 125, 0.04); min-width: 110px;">${p}</th>
+								<th style="background: rgba(31, 73, 125, 0.04); min-width: 110px;">${partner_display_map[p] || p}</th>
 							`).join("")}
 							<th style="text-align: right; width: 100px; background: #FFF9E6;">Total Request</th>
 							<th style="text-align: right; width: 110px;">Remaining Qty</th>
@@ -366,7 +381,19 @@ function build_matrix_html(frm, wrapper, spq_cache) {
 							</td>
 						`;
 					} else {
-						return `<td style="text-align: center; color: #ccc; font-style: italic;">-</td>`;
+						return `
+							<td style="background: rgba(31, 73, 125, 0.01); text-align: center; vertical-align: middle;">
+								<div class="req-label">Req: 0.00</div>
+								<input type="number" 
+									class="matrix-quota-input" 
+									data-row-names="" 
+									data-item-code="${item_code}"
+									data-partner="${p}"
+									value="0" 
+									step="${details.spq}"
+									${frm.doc.status === "Approved" ? "disabled" : ""}>
+							</td>
+						`;
 					}
 				}).join("")}
 				
@@ -450,6 +477,34 @@ function build_matrix_html(frm, wrapper, spq_cache) {
 						remaining_val -= share;
 					}
 				});
+			}
+		} else if (val > 0) {
+			// No existing child row for this item and partner. Let's create one dynamically!
+			let item_code = input.data("item-code");
+			let partner = input.data("partner");
+			
+			// Find an existing child row of the same item code to copy shipment, item_name, description, total_qty, customer
+			let copy_template = null;
+			frm.doc.items.forEach(child => {
+				if (child.item_code === item_code) {
+					copy_template = child;
+				}
+			});
+			
+			if (copy_template) {
+				let child = frm.add_child("items");
+				child.shipment = copy_template.shipment;
+				child.item_code = copy_template.item_code;
+				child.item_name = copy_template.item_name;
+				child.description = copy_template.description;
+				child.total_qty = copy_template.total_qty;
+				child.sales_partner = partner;
+				child.customer = copy_template.customer;
+				child.allocation_request = 0.0;
+				child.allocated_qty = val;
+				
+				frm.refresh_field("items");
+				render_allocation_matrix(frm);
 			}
 		}
 	});
