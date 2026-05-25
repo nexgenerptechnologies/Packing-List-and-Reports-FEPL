@@ -3,6 +3,11 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on('Team Leader Allocation Sheet', {
+	excel_file: function(frm) {
+		if (frm.doc.excel_file) {
+			frm.trigger('refresh');
+		}
+	},
 	setup: function(frm) {
 		frm.set_query('shipment_tracker', 'shipments', function() {
 			return { filters: { docstatus: 1 } };
@@ -28,7 +33,7 @@ frappe.ui.form.on('Team Leader Allocation Sheet', {
 		if (frm.doc.status === 'Draft') {
 			// Fetch Partner Requests
 			frm.add_custom_button(__('Fetch Partner Requests'), function() {
-				frm.save().then(() => {
+				let action = () => {
 					frappe.call({
 						method: 'packing_list_reports_fepl.packing.doctype.team_leader_allocation_sheet.team_leader_allocation_sheet.fetch_partner_requests',
 						args: { docname: frm.doc.name },
@@ -39,7 +44,12 @@ frappe.ui.form.on('Team Leader Allocation Sheet', {
 							}
 						}
 					});
-				});
+				};
+				if (frm.is_dirty()) {
+					frm.save(null, action);
+				} else {
+					action();
+				}
 			}).addClass('btn-primary');
 
 			// Download Template
@@ -58,7 +68,7 @@ frappe.ui.form.on('Team Leader Allocation Sheet', {
 			// Upload Excel Data
 			if (frm.doc.excel_file) {
 				frm.add_custom_button(__('Upload Excel Data'), function() {
-					frm.save().then(() => {
+					let action = () => {
 						frappe.call({
 							method: 'packing_list_reports_fepl.packing.doctype.team_leader_allocation_sheet.team_leader_allocation_sheet.upload_tl_excel',
 							args: { docname: frm.doc.name },
@@ -69,7 +79,12 @@ frappe.ui.form.on('Team Leader Allocation Sheet', {
 								}
 							}
 						});
-					});
+					};
+					if (frm.is_dirty()) {
+						frm.save(null, action);
+					} else {
+						action();
+					}
 				}).addClass('btn-primary');
 			}
 
