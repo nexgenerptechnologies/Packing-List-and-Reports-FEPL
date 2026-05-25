@@ -281,7 +281,7 @@ def download_tl_template(docname=None):
 			
 		partner_data = items_by_code[key]["partners"][p]
 		partner_data["request"] += item.allocation_request or 0
-		// Keep track of the partner's unique quota for this item code directly without summing
+		# Keep track of the partner's unique quota for this item code directly without summing
 		partner_data["quota"] = item.allocated_qty if item.allocated_qty is not None else 0
 		
 		items_by_code[key]["total_req"] += item.allocation_request or 0
