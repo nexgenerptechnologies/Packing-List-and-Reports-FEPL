@@ -1,4 +1,4 @@
-﻿import frappe
+import frappe
 from frappe.model.document import Document
 from frappe import _
 
@@ -209,12 +209,44 @@ class ItemAllocationSheet(Document):
 				so_item = frappe.db.get_value("Sales Order Item", {
 					"parent": item.sales_order,
 					"item_code": item.item_code
-				}, ["name", "custom_reserved_qty"], as_dict=1)
+				}, ["name", "custom_reserved_qty", "warehouse"], as_dict=1)
 				
 				if so_item:
 					current_reserved = flt(so_item.custom_reserved_qty)
 					new_reserved = current_reserved + flt(item.final_allocation)
-					frappe.db.set_value("Sales Order Item", so_item.name, "custom_reserved_qty", new_reserved)
+					
+					# Build standard and custom values to update on Sales Order Item
+					update_values = {"custom_reserved_qty": new_reserved}
+					
+					so_item_meta = frappe.get_meta("Sales Order Item")
+					if so_item_meta.has_field("reserve_stock"):
+						update_values["reserve_stock"] = 1
+						
+					frappe.db.set_value("Sales Order Item", so_item.name, update_values)
+					
+					# Create standard Stock Reservation Entry if DocType exists
+					if frappe.db.exists("DocType", "Stock Reservation Entry"):
+						warehouse = so_item.warehouse or "Finished Goods"
+						sre = frappe.get_doc({
+							"doctype": "Stock Reservation Entry",
+							"item_code": item.item_code,
+							"warehouse": warehouse,
+							"voucher_type": "Sales Order",
+							"voucher_no": item.sales_order,
+							"voucher_detail_no": so_item.name,
+							"reserved_qty": item.final_allocation,
+							"company": frappe.db.get_value("Sales Order", item.sales_order, "company"),
+							"status": "Reserved",
+							"remarks": f"Reserved via Item Allocation Sheet {self.name}"
+						})
+						sre.insert()
+						sre.submit()
+						
+						# Set reference to the SRE in the child row if field exists
+						item_meta = frappe.get_meta("Partner Allocation Detail")
+						if item_meta.has_field("stock_reservation_entry"):
+							item.db_set("stock_reservation_entry", sre.name)
+							
 					frappe.clear_document_cache("Sales Order", item.sales_order)
 					reserved_count += 1
 					
@@ -243,7 +275,46 @@ class ItemAllocationSheet(Document):
 				if so_item:
 					current_reserved = so_item.custom_reserved_qty or 0.0
 					new_reserved = max(0.0, current_reserved - item.final_allocation)
-					frappe.db.set_value("Sales Order Item", so_item.name, "custom_reserved_qty", new_reserved)
+					
+					# Build standard and custom values to update on Sales Order Item
+					update_values = {"custom_reserved_qty": new_reserved}
+					
+					# If we are unreserving all stock, we can uncheck standard reserve_stock
+					if new_reserved <= 0:
+						so_item_meta = frappe.get_meta("Sales Order Item")
+						if so_item_meta.has_field("reserve_stock"):
+							update_values["reserve_stock"] = 0
+							
+					frappe.db.set_value("Sales Order Item", so_item.name, update_values)
+					
+					# Cancel standard Stock Reservation Entries
+					if frappe.db.exists("DocType", "Stock Reservation Entry"):
+						# 1. Direct link check
+						sre_name = item.get("stock_reservation_entry") if hasattr(item, "stock_reservation_entry") else None
+						if sre_name:
+							sre_status = frappe.db.get_value("Stock Reservation Entry", sre_name, "docstatus")
+							if sre_status == 1:
+								sre = frappe.get_doc("Stock Reservation Entry", sre_name)
+								sre.cancel()
+							item.db_set("stock_reservation_entry", None)
+						else:
+							# 2. Fallback search by remarks tag
+							sres = frappe.get_all("Stock Reservation Entry",
+								filters={
+									"voucher_type": "Sales Order",
+									"voucher_no": item.sales_order,
+									"voucher_detail_no": so_item.name,
+									"item_code": item.item_code,
+									"docstatus": 1,
+									"remarks": f"Reserved via Item Allocation Sheet {self.name}"
+								},
+								fields=["name"])
+								
+							for sre_meta in sres:
+								sre = frappe.get_doc("Stock Reservation Entry", sre_meta.name)
+								sre.cancel()
+								
+					frappe.clear_document_cache("Sales Order", item.sales_order)
 
 def ensure_custom_fields():
 	from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
@@ -685,7 +756,7 @@ def get_customers_for_item(doctype, txt, searchfield, start, page_len, filters):
 	active_sos = frappe.get_all("Sales Order",
 		filters={
 			"name": ["in", so_names],
-			"status": ["not in", ["Completed", "Cancelled"]],
+			"status": ["not in", ["Completed", "Cancelled", "Closed"]],
 			"customer": ["like", f"%{txt}%"] if txt else ["!=", ""]
 		},
 		fields=["customer"],
@@ -729,7 +800,7 @@ def get_sales_orders_for_item(doctype, txt, searchfield, start, page_len, filter
 		filters={
 			"name": ["in", so_names],
 			"customer": customer,
-			"status": ["not in", ["Completed", "Cancelled"]],
+			"status": ["not in", ["Completed", "Cancelled", "Closed"]],
 			"name": ["like", f"%{txt}%"] if txt else ["!=", ""]
 		},
 		fields=["name", "customer_name"],
@@ -769,7 +840,7 @@ def validate_item_customer_sales_order(item_code, customer_name, sales_order=Non
 		filters={
 			"name": ["in", so_names],
 			"customer": cust_id,
-			"status": ["not in", ["Completed", "Cancelled"]]
+			"status": ["not in", ["Completed", "Cancelled", "Closed"]]
 		},
 		fields=["name"])
 		

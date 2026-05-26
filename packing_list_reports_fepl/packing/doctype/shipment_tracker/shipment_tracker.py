@@ -215,19 +215,29 @@ def get_outstanding_po_items(supplier, purchase_orders):
 	if not purchase_orders:
 		return []
 
-	# Use custom_line_number if exists, otherwise fallback to idx (sequence number)
+	po_item_meta = frappe.get_meta("Purchase Order Item")
+	fields_to_check = []
+	if po_item_meta.has_field("custom_line_number"):
+		fields_to_check.append("NULLIF(poi.custom_line_number, '')")
+	if po_item_meta.has_field("line_number"):
+		fields_to_check.append("NULLIF(poi.line_number, '')")
+	fields_to_check.append("CAST(poi.idx AS CHAR)")
+	
+	line_number_expr = f"COALESCE({', '.join(fields_to_check)})"
+
+	# Use dynamic line number expression based on metadata
 	return frappe.db.sql("""
 		SELECT 
 			poi.item_code, poi.item_name, poi.description, 
 			(poi.qty - poi.received_qty) as qty, poi.rate, 
-			poi.custom_line_number as line_number,
+			{0} as line_number,
 			poi.parent as purchase_order, poi.name as purchase_order_item,
 			po.currency, po.conversion_rate
 		FROM `tabPurchase Order Item` poi
 		JOIN `tabPurchase Order` po ON poi.parent = po.name
-		WHERE po.supplier = %s AND po.name IN ({0}) AND po.docstatus = 1 AND poi.qty > poi.received_qty
+		WHERE po.supplier = %s AND po.name IN ({1}) AND po.docstatus = 1 AND poi.qty > poi.received_qty
 		ORDER BY po.name, poi.idx ASC
-	""".format(", ".join(["'{0}'".format(d) for d in purchase_orders])), (supplier), as_dict=1)
+	""".format(line_number_expr, ", ".join(["'{0}'".format(d) for d in purchase_orders])), (supplier), as_dict=1)
 
 @frappe.whitelist()
 def make_purchase_receipt(docname):
