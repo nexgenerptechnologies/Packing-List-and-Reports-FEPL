@@ -227,7 +227,7 @@ class ItemAllocationSheet(Document):
 					# Create standard Stock Reservation Entry if DocType exists
 					if frappe.db.exists("DocType", "Stock Reservation Entry"):
 						warehouse = so_item.warehouse or "Finished Goods"
-						sre = frappe.get_doc({
+						sre_dict = {
 							"doctype": "Stock Reservation Entry",
 							"item_code": item.item_code,
 							"warehouse": warehouse,
@@ -236,9 +236,14 @@ class ItemAllocationSheet(Document):
 							"voucher_detail_no": so_item.name,
 							"reserved_qty": item.final_allocation,
 							"company": frappe.db.get_value("Sales Order", item.sales_order, "company"),
-							"status": "Reserved",
-							"remarks": f"Reserved via Item Allocation Sheet {self.name}"
-						})
+							"status": "Reserved"
+						}
+						
+						sre_meta = frappe.get_meta("Stock Reservation Entry")
+						if sre_meta.has_field("remarks"):
+							sre_dict["remarks"] = f"Reserved via Item Allocation Sheet {self.name}"
+							
+						sre = frappe.get_doc(sre_dict)
 						sre.insert()
 						sre.submit()
 						
@@ -298,20 +303,27 @@ class ItemAllocationSheet(Document):
 								sre.cancel()
 							item.db_set("stock_reservation_entry", None)
 						else:
-							# 2. Fallback search by remarks tag
-							sres = frappe.get_all("Stock Reservation Entry",
-								filters={
-									"voucher_type": "Sales Order",
-									"voucher_no": item.sales_order,
-									"voucher_detail_no": so_item.name,
-									"item_code": item.item_code,
-									"docstatus": 1,
-									"remarks": f"Reserved via Item Allocation Sheet {self.name}"
-								},
-								fields=["name"])
+							# 2. Fallback search with dynamic remarks check
+							sre_meta = frappe.get_meta("Stock Reservation Entry")
+							sre_filters = {
+								"voucher_type": "Sales Order",
+								"voucher_no": item.sales_order,
+								"voucher_detail_no": so_item.name,
+								"item_code": item.item_code,
+								"docstatus": 1
+							}
+							if sre_meta.has_field("remarks"):
+								sre_filters["remarks"] = f"Reserved via Item Allocation Sheet {self.name}"
 								
-							for sre_meta in sres:
-								sre = frappe.get_doc("Stock Reservation Entry", sre_meta.name)
+							sres = frappe.get_all("Stock Reservation Entry",
+								filters=sre_filters,
+								fields=["name", "reserved_qty"])
+								
+							for sre_meta_row in sres:
+								# If remarks column doesn't exist, we filter by exact quantity match
+								if not sre_meta.has_field("remarks") and abs(flt(sre_meta_row.reserved_qty) - flt(item.final_allocation)) > 0.0001:
+									continue
+								sre = frappe.get_doc("Stock Reservation Entry", sre_meta_row.name)
 								sre.cancel()
 								
 					frappe.clear_document_cache("Sales Order", item.sales_order)
