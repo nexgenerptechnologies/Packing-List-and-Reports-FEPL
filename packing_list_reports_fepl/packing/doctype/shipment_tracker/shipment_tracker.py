@@ -64,21 +64,24 @@ class ShipmentTracker(Document):
 						validation_errors.append(_("Row {0}: Item {1} is missing both Purchase Order Item and Line Number. Cannot auto-link.").format(item.idx, item.item_code))
 						continue
 					
-					# Auto-link based on available line number fields on Purchase Order Item
+					# Auto-link based on available line number fields on Purchase Order Item (supports prefix-insensitive matching)
 					po_item_meta = frappe.get_meta("Purchase Order Item")
 					where_clauses = []
 					query_args = []
 					
+					clean_ln = str(item.line_number).strip()
+					clean_ln_stripped = re.sub(r'^(?i)(fepl/po/|po/)', '', clean_ln)
+					
 					if po_item_meta.has_field("custom_line_number"):
-						where_clauses.append("poi.custom_line_number = %s")
-						query_args.append(item.line_number)
+						where_clauses.append("poi.custom_line_number = %s OR poi.custom_line_number LIKE %s OR poi.custom_line_number = %s")
+						query_args.extend([clean_ln, f"%/{clean_ln}", clean_ln_stripped])
 					if po_item_meta.has_field("line_number"):
-						where_clauses.append("poi.line_number = %s")
-						query_args.append(item.line_number)
+						where_clauses.append("poi.line_number = %s OR poi.line_number LIKE %s OR poi.line_number = %s")
+						query_args.extend([clean_ln, f"%/{clean_ln}", clean_ln_stripped])
 						
 					if not where_clauses:
-						where_clauses.append("poi.idx = %s")
-						query_args.append(item.line_number)
+						where_clauses.append("poi.idx = %s OR CAST(poi.idx AS CHAR) = %s")
+						query_args.extend([clean_ln, clean_ln_stripped])
 						
 					where_cond = " OR ".join(where_clauses)
 					query_args.extend([item.item_code, self.supplier])
@@ -163,8 +166,20 @@ class ShipmentTracker(Document):
 				if abs(float(item.rate or 0) - float(po_item.rate or 0)) > 0.000001:
 					discrepancies.append(_("Rate mismatch (Expected: {0}, Got: {1})").format(po_item.rate, item.rate))
 				
-				# Line Number Match
-				if normalize_text(item.line_number) != normalize_text(po_line_number):
+				# Line Number Match (supports loose/prefix-insensitive comparison)
+				def loose_line_match(ln1, ln2):
+					if not ln1 or not ln2: return False
+					n1 = normalize_text(ln1).lower()
+					n2 = normalize_text(ln2).lower()
+					if n1 == n2: return True
+					if n1.endswith(n2) or n2.endswith(n1): return True
+					def strip_prefix(s):
+						for p in ["fepl/po/", "po/"]:
+							if s.startswith(p): return s[len(p):]
+						return s
+					return strip_prefix(n1) == strip_prefix(n2)
+
+				if not loose_line_match(item.line_number, po_line_number):
 					discrepancies.append(_("Line Number mismatch (Expected: '{0}', Got: '{1}')").format(po_line_number or "", item.line_number or ""))
 				
 				if discrepancies:
