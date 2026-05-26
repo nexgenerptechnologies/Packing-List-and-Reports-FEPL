@@ -1,4 +1,4 @@
-﻿frappe.ui.form.on('Item Allocation Sheet', {
+frappe.ui.form.on('Item Allocation Sheet', {
 	onload: function(frm) {
 		if (!frm.doc.sales_partner) {
 			frappe.call({
@@ -225,13 +225,8 @@
 			items_grid.update_docfield_property('allocation_request', 'read_only', 1);
 			items_grid.update_docfield_property('allocated_qty', 'read_only', 1);
 			
-			if (!is_tl) {
-				items_grid.update_docfield_property('final_allocation', 'read_only', 0);
-				frm.set_df_property('excel_file', 'read_only', 0);
-			} else {
-				items_grid.update_docfield_property('final_allocation', 'read_only', 1);
-				frm.set_df_property('excel_file', 'read_only', 1);
-			}
+			items_grid.update_docfield_property('final_allocation', 'read_only', 0);
+			frm.set_df_property('excel_file', 'read_only', 0);
 			
 			frm.page.set_primary_action(__('Submit Allocation'), function() {
 				frm.savesubmit();
