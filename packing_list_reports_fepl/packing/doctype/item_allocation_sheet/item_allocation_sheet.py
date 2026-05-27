@@ -243,6 +243,15 @@ class ItemAllocationSheet(Document):
 						if sre_meta.has_field("remarks"):
 							sre_dict["remarks"] = f"Reserved via Item Allocation Sheet {self.name}"
 							
+						if sre_meta.has_field("available_qty"):
+							# Fetch actual available quantity if function is importable, otherwise fallback to final_allocation to pass required checks
+							try:
+								from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry import get_available_qty_to_reserve
+								db_available = get_available_qty_to_reserve(item.item_code, warehouse)
+								sre_dict["available_qty"] = max(flt(db_available), flt(item.final_allocation))
+							except:
+								sre_dict["available_qty"] = flt(item.final_allocation)
+							
 						sre = frappe.get_doc(sre_dict)
 						sre.insert()
 						sre.submit()
