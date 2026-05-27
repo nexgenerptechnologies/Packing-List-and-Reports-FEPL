@@ -256,6 +256,9 @@ class ItemAllocationSheet(Document):
 						sre.flags.ignore_validate = True
 						sre.flags.ignore_mandatory = True
 						sre.insert()
+						
+						sre.flags.ignore_validate = True
+						sre.flags.ignore_mandatory = True
 						sre.submit()
 						
 						# Set reference to the SRE in the child row if field exists

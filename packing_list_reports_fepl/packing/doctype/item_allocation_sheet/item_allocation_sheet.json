@@ -14,7 +14,8 @@
   "excel_file",
   "section_break_2",
   "shipments",
-  "items"
+  "items",
+  "amended_from"
  ],
  "fields": [
   {
@@ -71,6 +72,13 @@
    "label": "Item Allocations",
    "options": "Partner Allocation Detail",
    "reqd": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Item Allocation Sheet",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
