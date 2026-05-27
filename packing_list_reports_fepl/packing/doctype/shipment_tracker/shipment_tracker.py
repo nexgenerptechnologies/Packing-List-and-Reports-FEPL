@@ -70,7 +70,7 @@ class ShipmentTracker(Document):
 					query_args = []
 					
 					clean_ln = str(item.line_number).strip()
-					clean_ln_stripped = re.sub(r'^(?i)(fepl/po/|po/)', '', clean_ln)
+					clean_ln_stripped = re.sub(r'(?i)^(fepl/po/|po/)', '', clean_ln)
 					
 					if po_item_meta.has_field("custom_line_number"):
 						where_clauses.append("poi.custom_line_number = %s OR poi.custom_line_number LIKE %s OR poi.custom_line_number = %s")
@@ -504,3 +504,4 @@ def add_shipment_remark(docname, remark):
 		
 	doc.db_set("remarks", doc.remarks)
 	return "Success"
+
