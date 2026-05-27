@@ -71,40 +71,37 @@ class TeamLeaderAllocationSheet(Document):
 		if not frappe.db.get_single_value('Packing List Settings', 'enable_team_leader_allocation_sheet'):
 			frappe.throw(_('Team Leader Allocation Sheet is disabled in Packing List Settings.'))
 		
-		# Quota validation runs ONLY when the document status is set to "Approved".
-		# During draft stages, Sales Partners are allowed to have requested quantities
-		# whose sum exceeds shipment qty, and the Team Leader can fetch them without any validation crash.
-		if self.status == "Approved":
-			items_by_code = {}
-			for item in self.items:
-				if not item.item_code:
-					continue
-				if item.item_code not in items_by_code:
-					items_by_code[item.item_code] = {
-						"item_name": item.item_name,
-						"total_qty": flt(item.total_qty),
-						"partner_quotas": {}
-					}
-				if item.sales_partner:
-					# Do not sum split rows of the same partner! The partner's quota is the uniform allocated_qty value!
-					items_by_code[item.item_code]["partner_quotas"][item.sales_partner] = flt(item.allocated_qty)
-			
-			errors = []
-			for code, details in items_by_code.items():
-				allocated_sum = sum(details["partner_quotas"].values())
-				if allocated_sum > details["total_qty"]:
-					errors.append(
-						_("For Item {0} ({1}), total allocated quota ({2}) cannot exceed Shipment Qty ({3}).")
-						.format(code, details["item_name"], allocated_sum, details["total_qty"])
-					)
-			
-			if errors:
-				# Show all errors in one go with clean layout
-				error_msg = "<br>".join([f"&bull; {err}" for err in errors])
-				frappe.throw(
-					_("<b>Allocation Quota Violations:</b><br>{0}").format(error_msg),
-					title=_("Validation Error")
+		# Quota validation runs on every save (Draft or Approved)
+		items_by_code = {}
+		for item in self.items:
+			if not item.item_code:
+				continue
+			if item.item_code not in items_by_code:
+				items_by_code[item.item_code] = {
+					"item_name": item.item_name,
+					"total_qty": flt(item.total_qty),
+					"partner_quotas": {}
+				}
+			if item.sales_partner:
+				# Do not sum split rows of the same partner! The partner's quota is the uniform allocated_qty value!
+				items_by_code[item.item_code]["partner_quotas"][item.sales_partner] = flt(item.allocated_qty)
+		
+		errors = []
+		for code, details in items_by_code.items():
+			allocated_sum = sum(details["partner_quotas"].values())
+			if allocated_sum > details["total_qty"]:
+				errors.append(
+					_("For Item {0} ({1}), total allocated quota ({2}) cannot exceed Shipment Qty ({3}).")
+					.format(code, details["item_name"], allocated_sum, details["total_qty"])
 				)
+		
+		if errors:
+			# Show all errors in one go with clean layout
+			error_msg = "<br>".join([f"&bull; {err}" for err in errors])
+			frappe.throw(
+				_("<b>Allocation Quota Violations:</b><br>{0}").format(error_msg),
+				title=_("Validation Error")
+			)
 
 @frappe.whitelist()
 def fetch_partner_requests(docname):
@@ -574,3 +571,46 @@ def upload_tl_excel(docname):
 						
 		doc.save()
 		return f"Successfully updated partner quota entries from Matrix Excel."
+
+@frappe.whitelist()
+def get_available_shipments_for_tl(doctype, txt, searchfield, start, page_len, filters):
+	current_sheet = filters.get("current_sheet")
+	
+	# Find all Shipment Trackers that have already been allocated/added to other Team Leader Allocation Sheets (active, docstatus < 2)
+	allocated_shipments = []
+	
+	# Find TL sheets excluding the current one
+	tl_sheets_cond = {"name": ["!=", current_sheet]} if current_sheet else {}
+	tl_sheets_cond["docstatus"] = ["<", 2]
+	
+	tl_sheets = frappe.get_all("Team Leader Allocation Sheet",
+		filters=tl_sheets_cond,
+		fields=["name"])
+		
+	if tl_sheets:
+		sheet_names = [s.name for s in tl_sheets]
+		shipments_data = frappe.get_all("Item Allocation Shipment",
+			filters={
+				"parent": ["in", sheet_names]
+			},
+			fields=["shipment_tracker"])
+		allocated_shipments = list(set([s.shipment_tracker for s in shipments_data if s.shipment_tracker]))
+		
+	# Query Shipment Trackers with docstatus=1 and not in allocated_shipments
+	query_filters = {
+		"docstatus": 1
+	}
+	if allocated_shipments:
+		query_filters["name"] = ["not in", allocated_shipments]
+		
+	if txt:
+		query_filters["name"] = ["like", f"%{txt}%"]
+		
+	shipments = frappe.get_all("Shipment Tracker",
+		filters=query_filters,
+		fields=["name", "supplier", "eta"],
+		start=start,
+		page_length=page_len,
+		as_list=1)
+		
+	return shipments

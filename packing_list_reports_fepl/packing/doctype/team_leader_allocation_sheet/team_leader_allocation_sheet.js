@@ -8,8 +8,13 @@ frappe.ui.form.on('Team Leader Allocation Sheet', {
 		}
 	},
 	setup: function(frm) {
-		frm.set_query('shipment_tracker', 'shipments', function() {
-			return { filters: { docstatus: 1 } };
+		frm.set_query('shipment_tracker', 'shipments', function(doc) {
+			return {
+				query: "packing_list_reports_fepl.packing.doctype.team_leader_allocation_sheet.team_leader_allocation_sheet.get_available_shipments_for_tl",
+				filters: {
+					current_sheet: doc.name
+				}
+			};
 		});
 	},
 
