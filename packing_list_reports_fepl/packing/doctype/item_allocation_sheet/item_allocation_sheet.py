@@ -253,6 +253,8 @@ class ItemAllocationSheet(Document):
 								sre_dict["available_qty"] = flt(item.final_allocation)
 							
 						sre = frappe.get_doc(sre_dict)
+						sre.flags.ignore_validate = True
+						sre.flags.ignore_mandatory = True
 						sre.insert()
 						sre.submit()
 						
