@@ -195,7 +195,7 @@ class ShipmentTracker(Document):
 		if not self.shipment_items or len(self.shipment_items) == 0:
 			frappe.throw(_("Please fetch or add items to the shipment before submitting."))
 @frappe.whitelist()
-def download_template():
+def download_template(docname=None):
 	import openpyxl
 	from io import BytesIO
 	
@@ -213,6 +213,20 @@ def download_template():
 	for cell in ws[1]:
 		cell.font = Font(bold=True)
 		
+	if docname and frappe.db.exists("Shipment Tracker", docname):
+		doc = frappe.get_doc("Shipment Tracker", docname)
+		for item in doc.get("shipment_items"):
+			ws.append([
+				item.item_code or "",
+				item.item_name or "",
+				item.description or "",
+				item.qty or 0.0,
+				item.rate or 0.0,
+				item.line_number or "",
+				item.supplier_invoice or "",
+				item.bill_date or ""
+			])
+			
 	output = BytesIO()
 	wb.save(output)
 	output.seek(0)
@@ -232,10 +246,10 @@ def get_outstanding_po_items(supplier, purchase_orders):
 
 	po_item_meta = frappe.get_meta("Purchase Order Item")
 	fields_to_check = []
-	if po_item_meta.has_field("custom_line_number"):
-		fields_to_check.append("NULLIF(poi.custom_line_number, '')")
 	if po_item_meta.has_field("line_number"):
-		fields_to_check.append("NULLIF(poi.line_number, '')")
+		fields_to_check.append("NULLIF(TRIM(poi.line_number), '')")
+	if po_item_meta.has_field("custom_line_number"):
+		fields_to_check.append("NULLIF(TRIM(poi.custom_line_number), '')")
 	fields_to_check.append("CAST(poi.idx AS CHAR)")
 	
 	line_number_expr = f"COALESCE({', '.join(fields_to_check)})"

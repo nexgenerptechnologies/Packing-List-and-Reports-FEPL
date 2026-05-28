@@ -1,4 +1,4 @@
-﻿frappe.ui.form.on('Shipment Tracker', {
+frappe.ui.form.on('Shipment Tracker', {
 	validate: function(frm) {
 		let missing = [];
 		let invoice_dates = {};
@@ -54,7 +54,22 @@
 		frm.clear_custom_buttons();
 		
 		frm.add_custom_button(__('Download Template'), function() {
-			window.open('/api/method/packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.download_template');
+			if (frm.is_dirty() && frm.doc.shipment_items && frm.doc.shipment_items.length > 0) {
+				frappe.confirm(__('You have unsaved items in the table. To download a pre-filled template, please save the document first. Would you like to save now?'), function() {
+					frm.save().then(() => {
+						window.open('/api/method/packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.download_template?docname=' + encodeURIComponent(frm.doc.name));
+					});
+				}, function() {
+					// Fallback to empty template
+					window.open('/api/method/packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.download_template');
+				});
+			} else {
+				let url = '/api/method/packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.download_template';
+				if (frm.doc.name && frm.doc.shipment_items && frm.doc.shipment_items.length > 0) {
+					url += '?docname=' + encodeURIComponent(frm.doc.name);
+				}
+				window.open(url);
+			}
 		});
 
 		if (frm.doc.docstatus === 0 && frm.doc.supplier && frm.doc.shipment_pos && frm.doc.shipment_pos.length > 0) {
