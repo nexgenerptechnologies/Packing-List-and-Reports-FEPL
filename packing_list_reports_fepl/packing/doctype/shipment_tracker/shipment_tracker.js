@@ -1,34 +1,18 @@
 frappe.ui.form.on('Shipment Tracker', {
 	validate: function(frm) {
-		let missing = [];
 		let invoice_dates = {};
 		let conflicting = [];
 
 		(frm.doc.shipment_items || []).forEach(item => {
-			if (!item.supplier_invoice) {
-				missing.push(__('Row {0}: Supplier Invoice # is mandatory.', [item.idx]));
-			}
-			if (!item.bill_date) {
-				missing.push(__('Row {0}: Invoice Date is mandatory.', [item.idx]));
-			} else if (item.supplier_invoice) {
+			if (item.supplier_invoice && item.bill_date) {
 				let inv = item.supplier_invoice.trim().toLowerCase();
 				let date = item.bill_date;
 				if (invoice_dates[inv] && invoice_dates[inv] !== date) {
 					conflicting.push(__('Supplier Invoice # "{0}" has conflicting Invoice Dates in this tracker ({1} vs {2}).', [item.supplier_invoice, invoice_dates[inv], date]));
 				}
-			invoice_dates[inv] = date;
+				invoice_dates[inv] = date;
 			}
 		});
-
-		if (missing.length > 0) {
-			frappe.msgprint({
-				title: __('Validation Error'),
-				indicator: 'red',
-				message: missing.join('<br>')
-			});
-			frappe.validated = false;
-			return;
-		}
 
 		if (conflicting.length > 0) {
 			frappe.msgprint({
