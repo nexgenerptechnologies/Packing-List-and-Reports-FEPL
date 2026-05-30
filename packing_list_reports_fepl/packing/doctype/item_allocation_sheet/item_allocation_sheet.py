@@ -1,6 +1,7 @@
 import frappe
 from frappe.model.document import Document
 from frappe import _
+from frappe.utils import flt
 
 @frappe.whitelist()
 def get_sales_partner_for_user(user):
