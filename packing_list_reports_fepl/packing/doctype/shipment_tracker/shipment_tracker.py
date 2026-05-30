@@ -130,16 +130,24 @@ class ShipmentTracker(Document):
 		other_shipped_map = {}
 		
 		if po_item_ids:
+			po_item_meta = frappe.get_meta("Purchase Order Item")
+			extra_fields = []
+			if po_item_meta.has_field("line_number"):
+				extra_fields.append("poi.line_number")
+			if po_item_meta.has_field("custom_line_number"):
+				extra_fields.append("poi.custom_line_number")
+			
+			extra_fields_sql = ", " + ", ".join(extra_fields) if extra_fields else ""
+			
 			po_data = frappe.db.sql("""
 				SELECT 
 					poi.name, poi.item_code, poi.item_name, poi.description, 
 					poi.rate, poi.qty, poi.received_qty, poi.idx,
-					poi.custom_line_number, poi.line_number,
-					po.transaction_date
+					po.transaction_date {0}
 				FROM `tabPurchase Order Item` poi
 				JOIN `tabPurchase Order` po ON poi.parent = po.name
-				WHERE poi.name IN ({0})
-			""".format(", ".join(["%s"] * len(po_item_ids))), tuple(po_item_ids), as_dict=True)
+				WHERE poi.name IN ({1})
+			""".format(extra_fields_sql, ", ".join(["%s"] * len(po_item_ids))), tuple(po_item_ids), as_dict=True)
 			
 			for d in po_data:
 				po_items_map[d.name] = d
