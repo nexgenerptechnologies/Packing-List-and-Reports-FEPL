@@ -57,6 +57,7 @@ class SalesPartnerSubAllocation(Document):
 				sre_status = frappe.db.get_value("Stock Reservation Entry", row.stock_reservation_entry, "docstatus")
 				if sre_status == 1:
 					sre = frappe.get_doc("Stock Reservation Entry", row.stock_reservation_entry)
+					sre.flags.ignore_permissions = True
 					sre.cancel()
 				row.db_set("stock_reservation_entry", None)
 

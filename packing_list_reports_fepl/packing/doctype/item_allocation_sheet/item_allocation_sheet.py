@@ -314,6 +314,7 @@ class ItemAllocationSheet(Document):
 							sre_status = frappe.db.get_value("Stock Reservation Entry", sre_name, "docstatus")
 							if sre_status == 1:
 								sre = frappe.get_doc("Stock Reservation Entry", sre_name)
+								sre.flags.ignore_permissions = True
 								sre.cancel()
 							item.db_set("stock_reservation_entry", None)
 						else:
@@ -338,6 +339,7 @@ class ItemAllocationSheet(Document):
 								if not sre_meta.has_field("remarks") and abs(flt(sre_meta_row.reserved_qty) - flt(item.final_allocation)) > 0.0001:
 									continue
 								sre = frappe.get_doc("Stock Reservation Entry", sre_meta_row.name)
+								sre.flags.ignore_permissions = True
 								sre.cancel()
 								
 					frappe.clear_document_cache("Sales Order", item.sales_order)
