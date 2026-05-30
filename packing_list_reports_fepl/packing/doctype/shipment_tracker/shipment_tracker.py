@@ -7,6 +7,27 @@ class ShipmentTracker(Document):
 		if not frappe.db.get_single_value('Packing List Settings', 'enable_shipment_tracker'):
 			frappe.throw(_('Shipment Tracker is disabled in Packing List Settings.'))
 
+		# 1. Bulk check across other documents in the database for conflicting Invoice Dates
+		# Collect all unique, non-empty invoices
+		invoices_to_check = list(set(
+			item.supplier_invoice.strip().lower() 
+			for item in self.shipment_items 
+			if item.supplier_invoice and item.bill_date
+		))
+		
+		existing_invoices_map = {}
+		if invoices_to_check:
+			existing_data = frappe.db.sql("""
+				SELECT LOWER(TRIM(child.supplier_invoice)) as invoice, child.parent, child.bill_date 
+				FROM `tabShipment Item` child
+				JOIN `tabShipment Tracker` parent ON child.parent = parent.name
+				WHERE LOWER(TRIM(child.supplier_invoice)) IN ({0})
+				  AND child.parent != %s
+				  AND parent.docstatus < 2
+			""".format(", ".join(["%s"] * len(invoices_to_check))), tuple(invoices_to_check + [self.name or '']), as_dict=True)
+			
+			for d in existing_data:
+				existing_invoices_map[d.invoice] = (d.parent, d.bill_date)
 
 		# Check within the document for conflicting Invoice Dates for the same Supplier Invoice #
 		invoice_dates = {}
@@ -22,22 +43,12 @@ class ShipmentTracker(Document):
 				)
 			invoice_dates[inv] = date
 			
-			# Check across other documents in the database
-			existing = frappe.db.sql("""
-				SELECT child.parent, child.bill_date 
-				FROM `tabShipment Item` child
-				JOIN `tabShipment Tracker` parent ON child.parent = parent.name
-				WHERE LOWER(TRIM(child.supplier_invoice)) = %s 
-				  AND child.parent != %s 
-				  AND child.bill_date != %s
-				  AND parent.docstatus < 2
-				LIMIT 1
-			""", (inv, self.name or '', item.bill_date), as_dict=True)
-			
-			if existing:
+			# Check against existing invoices in the database
+			existing = existing_invoices_map.get(inv)
+			if existing and str(existing[1]) != date:
 				frappe.throw(
 					_("Supplier Invoice # '{0}' already exists in Shipment Tracker '{1}' with a different Invoice Date ({2}). The date must be {3}.")
-					.format(item.supplier_invoice, existing[0].parent, existing[0].bill_date, existing[0].bill_date)
+					.format(item.supplier_invoice, existing[0], existing[1], existing[1])
 				)
 
 		# Detailed line-item strict validation on Save
@@ -68,11 +79,11 @@ class ShipmentTracker(Document):
 					clean_ln = str(item.line_number).strip()
 					clean_ln_stripped = re.sub(r'(?i)^(fepl/po/|po/)', '', clean_ln)
 					
-					if po_item_meta.has_field("custom_line_number"):
-						where_clauses.append("poi.custom_line_number = %s OR poi.custom_line_number LIKE %s OR poi.custom_line_number = %s")
-						query_args.extend([clean_ln, f"%/{clean_ln}", clean_ln_stripped])
 					if po_item_meta.has_field("line_number"):
 						where_clauses.append("poi.line_number = %s OR poi.line_number LIKE %s OR poi.line_number = %s")
+						query_args.extend([clean_ln, f"%/{clean_ln}", clean_ln_stripped])
+					if po_item_meta.has_field("custom_line_number"):
+						where_clauses.append("poi.custom_line_number = %s OR poi.custom_line_number LIKE %s OR poi.custom_line_number = %s")
 						query_args.extend([clean_ln, f"%/{clean_ln}", clean_ln_stripped])
 						
 					if not where_clauses:
@@ -107,14 +118,51 @@ class ShipmentTracker(Document):
 					if po_currency:
 						self.currency = po_currency
 						break
+
+		# Fetch all required Purchase Order Item details in a single bulk query
+		po_item_ids = list(set(
+			item.purchase_order_item 
+			for item in self.shipment_items 
+			if item.qty > 0 and item.purchase_order_item
+		))
+		
+		po_items_map = {}
+		other_shipped_map = {}
+		
+		if po_item_ids:
+			po_data = frappe.db.sql("""
+				SELECT 
+					poi.name, poi.item_code, poi.item_name, poi.description, 
+					poi.rate, poi.qty, poi.received_qty, poi.idx,
+					poi.custom_line_number, poi.line_number,
+					po.transaction_date
+				FROM `tabPurchase Order Item` poi
+				JOIN `tabPurchase Order` po ON poi.parent = po.name
+				WHERE poi.name IN ({0})
+			""".format(", ".join(["%s"] * len(po_item_ids))), tuple(po_item_ids), as_dict=True)
+			
+			for d in po_data:
+				po_items_map[d.name] = d
+
+			# Fetch other shipped quantities in a single bulk group-by query
+			shipped_data = frappe.db.sql("""
+				SELECT purchase_order_item, SUM(qty) as total_qty
+				FROM `tabShipment Item`
+				WHERE purchase_order_item IN ({0})
+				  AND docstatus = 1
+				  AND parent != %s
+				GROUP BY purchase_order_item
+			""".format(", ".join(["%s"] * len(po_item_ids))), tuple(po_item_ids + [self.name or ""]), as_dict=True)
+			
+			for d in shipped_data:
+				other_shipped_map[d.purchase_order_item] = float(d.total_qty or 0.0)
 					
 		# Second pass: Perform other validations and combined quantity validation
 		reported_po_qty_errors = set()
 		for item in self.shipment_items:
 			if item.qty > 0 and item.purchase_order_item:
-				try:
-					po_item = frappe.get_doc("Purchase Order Item", item.purchase_order_item)
-				except frappe.DoesNotExistError:
+				po_item = po_items_map.get(item.purchase_order_item)
+				if not po_item:
 					validation_errors.append(_("Row {0}: Purchase Order Item {1} does not exist.").format(item.idx, item.purchase_order_item))
 					continue
 					
@@ -124,33 +172,29 @@ class ShipmentTracker(Document):
 
 				# Supplier Invoice Date Validation
 				from frappe.utils import getdate
-				po_date = frappe.db.get_value("Purchase Order", item.purchase_order, "transaction_date")
+				po_date = po_item.get("transaction_date")
 				if po_date and item.bill_date:
 					if getdate(item.bill_date) < getdate(po_date):
 						discrepancies.append(_("Supplier Invoice Date ({0}) is before Purchase Order Date ({1})").format(item.bill_date, po_date))
 
 				# Item Code Match
-				if normalize_text(item.item_code) != normalize_text(po_item.item_code):
-					discrepancies.append(_("Item Code mismatch (Expected: '{0}', Got: '{1}')").format(po_item.item_code or "", item.item_code or ""))
+				if normalize_text(item.item_code) != normalize_text(po_item.get("item_code")):
+					discrepancies.append(_("Item Code mismatch (Expected: '{0}', Got: '{1}')").format(po_item.get("item_code") or "", item.item_code or ""))
 				
 				# Item Name Match
-				if normalize_text(item.item_name) != normalize_text(po_item.item_name):
-					discrepancies.append(_("Item Name mismatch (Expected: '{0}', Got: '{1}')").format(po_item.item_name or "", item.item_name or ""))
+				if normalize_text(item.item_name) != normalize_text(po_item.get("item_name")):
+					discrepancies.append(_("Item Name mismatch (Expected: '{0}', Got: '{1}')").format(po_item.get("item_name") or "", item.item_name or ""))
 				
 				# Description Match
-				if normalize_text(item.description) != normalize_text(po_item.description):
-					discrepancies.append(_("Description mismatch (Expected: '{0}', Got: '{1}')").format(po_item.description or "", item.description or ""))
+				if normalize_text(item.description) != normalize_text(po_item.get("description")):
+					discrepancies.append(_("Description mismatch (Expected: '{0}', Got: '{1}')").format(po_item.get("description") or "", item.description or ""))
 				
 				# Combined Quantity Match against PO Item's pending quantity
-				other_shipped = frappe.db.sql("""
-					SELECT SUM(qty)
-					FROM `tabShipment Item`
-					WHERE purchase_order_item = %s
-					  AND docstatus = 1
-					  AND parent != %s
-				""", (item.purchase_order_item, self.name or ""))[0][0] or 0.0
+				other_shipped = other_shipped_map.get(item.purchase_order_item, 0.0)
 				
-				pending_qty = max(0.0, min(po_item.qty - other_shipped, po_item.qty - po_item.received_qty))
+				po_qty = float(po_item.get("qty") or 0.0)
+				po_received = float(po_item.get("received_qty") or 0.0)
+				pending_qty = max(0.0, min(po_qty - other_shipped, po_qty - po_received))
 				combined_qty = tracker_qty_totals.get(item.purchase_order_item, 0.0)
 				
 				if float(combined_qty) > float(pending_qty):
@@ -159,8 +203,9 @@ class ShipmentTracker(Document):
 						reported_po_qty_errors.add(item.purchase_order_item)
 				
 				# Rate Match (Precision up to 0.000001)
-				if abs(float(item.rate or 0) - float(po_item.rate or 0)) > 0.000001:
-					discrepancies.append(_("Rate mismatch (Expected: {0}, Got: {1})").format(po_item.rate, item.rate))
+				po_rate = float(po_item.get("rate") or 0.0)
+				if abs(float(item.rate or 0) - po_rate) > 0.000001:
+					discrepancies.append(_("Rate mismatch (Expected: {0}, Got: {1})").format(po_rate, item.rate))
 				
 				# Line Number Match (supports loose/prefix-insensitive comparison)
 				def loose_line_match(ln1, ln2):
