@@ -1,11 +1,16 @@
-import frappe
+﻿import frappe
 from frappe import _
+from frappe.utils import flt
 
 def execute(filters=None):
 	if not frappe.db.get_single_value('Packing List Settings', 'enable_pending_so_report_formax'):
 		frappe.throw(_('Pending SO Report Formax is disabled in Packing List Settings.'))
 	if not filters:
 		filters = {}
+
+	# Ensure defensive default dates if they are missing
+	filters.setdefault("from_date", "1900-01-01")
+	filters.setdefault("to_date", "2100-12-31")
 
 	columns = get_columns()
 	data = get_data(filters)
@@ -49,7 +54,7 @@ def get_data(filters):
 	if filters.get("sales_partner"):
 		conditions += " AND so.sales_partner = %(sales_partner)s"
 
-	query = f"""
+	base_query = f"""
 		SELECT
 			i.item_code AS item_code,
 			i.item_name AS item_name,
@@ -68,82 +73,9 @@ def get_data(filters):
 			sod.rate AS so_price,
 			DATE_FORMAT(sod.delivery_date, '%%d-%%m-%%Y') AS delivery_date,
 			(sod.qty - IFNULL(sod.delivered_qty, 0)) AS so_wise_pending_qty,
-
-			-- Pending Purchase Orders
-			COALESCE((SELECT SUM(pod.qty - COALESCE(pod.received_qty, 0))
-				FROM `tabPurchase Order` po
-				JOIN `tabPurchase Order Item` pod ON po.name = pod.parent
-				WHERE pod.item_code = i.item_code 
-				AND po.docstatus = 1 
-				AND po.status NOT IN ('Closed', 'Completed')
-			), 0) AS pending_po_qty,
-
-			-- Total Stock
-			COALESCE(SUM(b.actual_qty), 0) AS stock_qty,
-
-			-- Reserved Stock
-			COALESCE((SELECT SUM(sre.reserved_qty - IFNULL(sre.delivered_qty, 0))
-				FROM `tabStock Reservation Entry` sre
-				WHERE sre.item_code = i.item_code
-				AND sre.docstatus = 1
-			), 0) AS reserved_stock,
-
-			-- Free Stock
-			CASE
-				WHEN COALESCE(SUM(b.actual_qty), 0) = 0 THEN 0
-				ELSE GREATEST(
-					COALESCE(SUM(b.actual_qty), 0) - COALESCE((SELECT SUM(sre.reserved_qty - IFNULL(sre.delivered_qty, 0))
-						FROM `tabStock Reservation Entry` sre
-						WHERE sre.item_code = i.item_code
-						AND sre.docstatus = 1
-					), 0), 0
-				)
-			END AS free_stock,
-
-			-- Effective Stock
-			(
-				COALESCE((SELECT SUM(sre.reserved_qty - IFNULL(sre.delivered_qty, 0))
-					FROM `tabStock Reservation Entry` sre
-					WHERE sre.item_code = i.item_code
-					AND sre.docstatus = 1
-				), 0) +
-				CASE
-					WHEN COALESCE(SUM(b.actual_qty), 0) = 0 THEN 0
-					ELSE GREATEST(
-						COALESCE(SUM(b.actual_qty), 0) - COALESCE((SELECT SUM(sre.reserved_qty - IFNULL(sre.delivered_qty, 0))
-							FROM `tabStock Reservation Entry` sre
-							WHERE sre.item_code = i.item_code
-							AND sre.docstatus = 1
-						), 0), 0
-					)
-				END +
-				COALESCE((SELECT SUM(pod.qty - COALESCE(pod.received_qty, 0))
-					FROM `tabPurchase Order` po
-					JOIN `tabPurchase Order Item` pod ON po.name = pod.parent
-					WHERE pod.item_code = i.item_code 
-					AND po.docstatus = 1 
-					AND po.status NOT IN ('Closed', 'Completed')
-				), 0) - 
-				COALESCE((SELECT SUM(sod2.qty - COALESCE(sod2.delivered_qty, 0))
-					FROM `tabSales Order` so2
-					JOIN `tabSales Order Item` sod2 ON so2.name = sod2.parent
-					WHERE sod2.item_code = i.item_code 
-					AND so2.docstatus = 1 
-					AND so2.status NOT IN ('Closed', 'Cancelled', 'Completed')
-				), 0)
-			) AS effective_stock_qty,
-
-			-- Customer Ref Code
-			(
-				SELECT icd.ref_code
-				FROM `tabItem Customer Detail` icd
-				WHERE icd.parent = i.name
-				AND icd.customer_name = so.customer
-				LIMIT 1
-			) AS cust_ref_code
-
+			i.name AS item_docname,
+			so.customer AS customer_id
 		FROM `tabItem` i
-		LEFT JOIN `tabBin` b ON i.item_code = b.item_code
 		INNER JOIN `tabSales Order Item` sod ON i.item_code = sod.item_code
 		INNER JOIN `tabSales Order` so 
 			ON so.name = sod.parent 
@@ -153,8 +85,105 @@ def get_data(filters):
 		AND (sod.qty - IFNULL(sod.delivered_qty, 0)) > 0
 		AND so.transaction_date BETWEEN %(from_date)s AND %(to_date)s
 		{conditions}
-		GROUP BY i.item_code, sod.name, so.name
 		ORDER BY so.transaction_date ASC, so.name ASC, i.item_code ASC
 	"""
 
-	return frappe.db.sql(query, filters, as_dict=1)
+	raw_data = frappe.db.sql(base_query, filters, as_dict=1)
+	if not raw_data:
+		return []
+
+	# 1. Bulk fetch Total Stock Qty per item
+	bin_data = frappe.db.sql("""
+		SELECT 
+			item_code, 
+			SUM(actual_qty) AS stock_qty
+		FROM `tabBin`
+		GROUP BY item_code
+	""", as_dict=1)
+	stock_qty_map = {b.item_code: flt(b.stock_qty) for b in bin_data}
+
+	# 2. Bulk fetch Reserved Stock per item
+	reserved_data = frappe.db.sql("""
+		SELECT 
+			item_code, 
+			SUM(reserved_qty - IFNULL(delivered_qty, 0)) AS reserved_qty
+		FROM `tabStock Reservation Entry`
+		WHERE docstatus = 1
+		GROUP BY item_code
+	""", as_dict=1)
+	reserved_stock_map = {r.item_code: flt(r.reserved_qty) for r in reserved_data}
+
+	# 3. Bulk fetch Pending PO Qty
+	po_data = frappe.db.sql("""
+		SELECT 
+			pod.item_code, 
+			SUM(pod.qty - COALESCE(pod.received_qty, 0)) AS pending_po_qty
+		FROM `tabPurchase Order` po
+		JOIN `tabPurchase Order Item` pod ON po.name = pod.parent
+		WHERE po.docstatus = 1 
+		AND po.status NOT IN ('Closed', 'Completed')
+		GROUP BY pod.item_code
+	""", as_dict=1)
+	pending_po_map = {p.item_code: flt(p.pending_po_qty) for p in po_data}
+
+	# 4. Bulk fetch Total Pending SO Qty per item
+	so_pending_data = frappe.db.sql("""
+		SELECT 
+			sod.item_code, 
+			SUM(sod.qty - COALESCE(sod.delivered_qty, 0)) AS pending_so_qty
+		FROM `tabSales Order` so
+		JOIN `tabSales Order Item` sod ON so.name = sod.parent
+		WHERE so.docstatus = 1 
+		AND so.status NOT IN ('Closed', 'Cancelled', 'Completed')
+		GROUP BY sod.item_code
+	""", as_dict=1)
+	pending_so_map = {s.item_code: flt(s.pending_so_qty) for s in so_pending_data}
+
+	# 5. Bulk fetch Customer Reference Codes
+	ref_data = frappe.db.sql("""
+		SELECT parent, customer_name, ref_code
+		FROM `tabItem Customer Detail`
+	""", as_dict=1)
+	ref_code_map = {(r.parent, r.customer_name): r.ref_code for r in ref_data}
+
+	# 6. Map all bulk-fetched data in Python
+	enriched_data = []
+	for row in raw_data:
+		item_code = row['item_code']
+		item_docname = row['item_docname']
+		customer_id = row['customer_id']
+		
+		# Total Stock
+		stock_qty = stock_qty_map.get(item_code, 0.0)
+		row['stock_qty'] = stock_qty
+		
+		# Reserved Stock
+		res_stock = reserved_stock_map.get(item_code, 0.0)
+		row['reserved_stock'] = res_stock
+		
+		# Free Stock
+		free_stock = 0.0
+		if stock_qty > 0:
+			free_stock = max(stock_qty - res_stock, 0.0)
+		row['free_stock'] = free_stock
+		
+		# Pending PO Qty
+		pending_po = pending_po_map.get(item_code, 0.0)
+		row['pending_po_qty'] = pending_po
+		
+		# Total Pending SO Qty
+		total_pending_so = pending_so_map.get(item_code, 0.0)
+		
+		# Effective Stock = Reserved + Free + Pending PO - Total Pending SO
+		row['effective_stock_qty'] = res_stock + free_stock + pending_po - total_pending_so
+		
+		# Customer Ref Code
+		row['cust_ref_code'] = ref_code_map.get((item_docname, customer_id))
+		
+		# Clean up temporary lookup keys
+		row.pop('item_docname', None)
+		row.pop('customer_id', None)
+		
+		enriched_data.append(row)
+
+	return enriched_data

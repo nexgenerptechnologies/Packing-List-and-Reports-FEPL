@@ -1,5 +1,6 @@
-import frappe
+﻿import frappe
 from frappe import _
+from frappe.utils import flt
 
 def execute(filters=None):
 	if not frappe.db.get_single_value('Packing List Settings', 'enable_stock_ledger_formax'):
@@ -67,14 +68,70 @@ def get_data(filters):
 	"""
 	
 	raw_data = frappe.db.sql(query, filters, as_dict=1)
+	if not raw_data:
+		return []
+
+	# Group parent docnames by DocType for bulk retrieval
+	purchase_types = ['Purchase Receipt', 'Purchase Invoice', 'Purchase Order']
+	sales_types = ['Sales Invoice', 'Delivery Note']
+	vouchers_by_type = {}
 	
+	for row in raw_data:
+		v_type = row['voucher_type']
+		v_no = row['voucher_no']
+		if v_type and v_no:
+			vouchers_by_type.setdefault(v_type, set()).add(v_no)
+
+	# 1. Bulk fetch particulars and currency
+	parent_info = {} # key: (voucher_type, voucher_no) -> {particulars, currency}
+	
+	for v_type, v_nos in vouchers_by_type.items():
+		v_nos_list = list(v_nos)
+		if v_type in purchase_types:
+			p_data = frappe.get_all(v_type,
+				filters={"name": ["in", v_nos_list]},
+				fields=["name", "supplier", "currency"])
+			for p in p_data:
+				parent_info[(v_type, p.name)] = {
+					"particulars": p.supplier,
+					"currency": p.currency
+				}
+		elif v_type in sales_types:
+			p_data = frappe.get_all(v_type,
+				filters={"name": ["in", v_nos_list]},
+				fields=["name", "customer", "currency"])
+			for p in p_data:
+				parent_info[(v_type, p.name)] = {
+					"particulars": p.customer,
+					"currency": p.currency
+				}
+
+	# 2. Bulk fetch rates from child tables
+	rates_info = {} # key: (dt_item, parent, item_code) -> rate
+	for v_type, v_nos in vouchers_by_type.items():
+		if v_type in (purchase_types + sales_types):
+			dt_item = v_type + " Item"
+			child_data = frappe.get_all(dt_item,
+				filters={"parent": ["in", list(v_nos)]},
+				fields=["parent", "item_code", "rate"])
+			for c in child_data:
+				rates_info[(dt_item, c.parent, c.item_code)] = c.rate
+
+	# 3. Bulk fetch Delivery Note linked Sales Invoices
+	dn_invoices = {} # key: (dn_no, item_code) -> parent sales invoice
+	if 'Delivery Note' in vouchers_by_type:
+		si_items = frappe.get_all('Sales Invoice Item',
+			filters={"delivery_note": ["in", list(vouchers_by_type['Delivery Note'])]},
+			fields=["delivery_note", "item_code", "parent"])
+		for s in si_items:
+			dn_invoices[(s.delivery_note, s.item_code)] = s.parent
+
+	# 4. Map the fetched data back to each row
 	enriched_data = []
 	for row in raw_data:
-		# Quantities
 		row['in_qty'] = row['actual_qty'] if row['actual_qty'] > 0 else 0
 		row['out_qty'] = abs(row['actual_qty']) if row['actual_qty'] < 0 else 0
 		
-		# Particulars & Rates & Currency
 		v_type = row['voucher_type']
 		v_no = row['voucher_no']
 		
@@ -83,30 +140,27 @@ def get_data(filters):
 		currency = "INR"
 		si_no = None
 		
-		if v_type in ['Purchase Receipt', 'Purchase Invoice', 'Purchase Order']:
-			dt_item = v_type + " Item"
-			parent_data = frappe.db.get_value(v_type, v_no, ['supplier', 'currency'], as_dict=1)
-			if parent_data:
-				particulars = parent_data.supplier
-				currency = parent_data.currency
+		p_key = (v_type, v_no)
+		if p_key in parent_info:
+			particulars = parent_info[p_key]["particulars"]
+			currency = parent_info[p_key]["currency"]
 			
-			rate = frappe.db.get_value(dt_item, {'parent': v_no, 'item_code': row['item_code']}, 'rate')
+		if v_type in purchase_types:
+			dt_item = v_type + " Item"
+			rate = rates_info.get((dt_item, v_no, row['item_code']), 0)
 			row['purchase_rate'] = rate
+			row['selling_rate'] = 0
 			
-		elif v_type in ['Sales Invoice', 'Delivery Note']:
+		elif v_type in sales_types:
 			dt_item = v_type + " Item"
-			parent_data = frappe.db.get_value(v_type, v_no, ['customer', 'currency'], as_dict=1)
-			if parent_data:
-				particulars = parent_data.customer
-				currency = parent_data.currency
-			
-			rate = frappe.db.get_value(dt_item, {'parent': v_no, 'item_code': row['item_code']}, 'rate')
+			rate = rates_info.get((dt_item, v_no, row['item_code']), 0)
 			row['selling_rate'] = rate
+			row['purchase_rate'] = 0
 			
 			if v_type == 'Sales Invoice':
 				si_no = v_no
-			else: # Delivery Note
-				si_no = frappe.db.get_value('Sales Invoice Item', {'delivery_note': v_no, 'item_code': row['item_code']}, 'parent')
+			else:
+				si_no = dn_invoices.get((v_no, row['item_code']))
 				
 		row['particulars_name'] = particulars
 		row['currency'] = currency
