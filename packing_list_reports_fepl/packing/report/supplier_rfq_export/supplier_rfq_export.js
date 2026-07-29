@@ -7,5 +7,10 @@ frappe.query_reports["Supplier RFQ Export"] = {
 			"options": "Quotation",
 			"reqd": 1
 		}
-	]
+	],
+	"onload": function(report) {
+		report.page.add_inner_button(__("Download Excel"), function() {
+			report.export_report("Excel");
+		});
+	}
 };
