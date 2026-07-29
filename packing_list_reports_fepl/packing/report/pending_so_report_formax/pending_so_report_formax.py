@@ -1,4 +1,4 @@
-﻿import frappe
+import frappe
 from frappe import _
 from frappe.utils import flt
 
@@ -38,6 +38,7 @@ def get_columns():
 		{"label": _("Pending PO Qty"), "fieldname": "pending_po_qty", "fieldtype": "Float", "width": 120},
 		{"label": _("Stock Qty"), "fieldname": "stock_qty", "fieldtype": "Float", "width": 100},
 		{"label": _("Reserved Stock"), "fieldname": "reserved_stock", "fieldtype": "Float", "width": 120},
+		{"label": _("SO Reserved Qty"), "fieldname": "so_reserved_qty", "fieldtype": "Float", "width": 120},
 		{"label": _("Free Stock"), "fieldname": "free_stock", "fieldtype": "Float", "width": 100},
 		{"label": _("Effective Stock"), "fieldname": "effective_stock_qty", "fieldtype": "Float", "width": 120},
 		{"label": _("Cust Ref Code"), "fieldname": "cust_ref_code", "fieldtype": "Data", "width": 120}
@@ -113,6 +114,18 @@ def get_data(filters):
 	""", as_dict=1)
 	reserved_stock_map = {r.item_code: flt(r.reserved_qty) for r in reserved_data}
 
+	# 2.5 Bulk fetch SO Reserved Stock
+	so_reserved_data = frappe.db.sql("""
+		SELECT 
+			item_code, 
+			voucher_no,
+			SUM(reserved_qty - IFNULL(delivered_qty, 0)) AS reserved_qty
+		FROM `tabStock Reservation Entry`
+		WHERE docstatus = 1 AND voucher_type = 'Sales Order'
+		GROUP BY item_code, voucher_no
+	""", as_dict=1)
+	so_reserved_map = {(r.item_code, r.voucher_no): flt(r.reserved_qty) for r in so_reserved_data}
+
 	# 3. Bulk fetch Pending PO Qty
 	po_data = frappe.db.sql("""
 		SELECT 
@@ -160,6 +173,10 @@ def get_data(filters):
 		# Reserved Stock
 		res_stock = reserved_stock_map.get(item_code, 0.0)
 		row['reserved_stock'] = res_stock
+		
+		# SO Reserved Qty
+		so_res_stock = so_reserved_map.get((item_code, row['so_number']), 0.0)
+		row['so_reserved_qty'] = so_res_stock
 		
 		# Free Stock
 		free_stock = 0.0
