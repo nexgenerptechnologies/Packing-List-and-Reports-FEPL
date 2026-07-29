@@ -1,4 +1,4 @@
-﻿frappe.query_reports["Supplier RFQ Export"] = {
+frappe.query_reports["Supplier RFQ Export"] = {
 	"filters": [
 		{
 			"fieldname": "quotation",
