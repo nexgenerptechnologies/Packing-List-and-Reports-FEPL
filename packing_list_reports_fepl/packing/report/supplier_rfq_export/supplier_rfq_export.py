@@ -1,4 +1,4 @@
-﻿import frappe
+import frappe
 from frappe import _
 from frappe.utils import flt
 
@@ -63,7 +63,7 @@ def get_data(filters):
 	data = []
 	for item in q.items:
 		brand = item.get("brand") or frappe.db.get_value("Item", item.item_code, "brand")
-		sop = q.get("sop_date") or q.get("custom_sop_date")
+		sop = item.get("sop_date") or item.get("custom_sop_date") or q.get("sop_date") or q.get("custom_sop_date")
 		mq = item.get("monthly_qty") or item.get("custom_monthly_qty") or item.qty
 		cd = item.get("customer_description") or item.get("custom_customer_description")
 		
