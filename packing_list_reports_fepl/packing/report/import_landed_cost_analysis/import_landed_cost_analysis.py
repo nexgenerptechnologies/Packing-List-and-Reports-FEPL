@@ -45,13 +45,14 @@ def get_data(filters):
 	boe_join = ""
 	bcd_field = "0.0"
 	if has_boe:
-		boe_join = """
-			LEFT JOIN `tabBill of Entry Item` boei ON boei.purchase_invoice = pi.name AND boei.item = pii.item_code
-			LEFT JOIN `tabBill of Entry` boe ON boe.name = boei.parent AND boe.docstatus = 1
-		"""
-		
 		# Find the correct column name dynamically
 		columns = frappe.db.get_table_columns("Bill of Entry Item")
+		item_field = "item_code" if "item_code" in columns else "item"
+
+		boe_join = f"""
+			LEFT JOIN `tabBill of Entry Item` boei ON boei.purchase_invoice = pi.name AND boei.{item_field} = pii.item_code
+			LEFT JOIN `tabBill of Entry` boe ON boe.name = boei.parent AND boe.docstatus = 1
+		"""
 		candidates = ["customs_and_additional_charges", "customs_and_additional_duty", "customs_duty", "total_customs_duty", "total_duty_amount"]
 		for cand in candidates:
 			if cand in columns:
