@@ -20,6 +20,7 @@ def execute(filters=None):
 def get_columns():
 	return [
 		{"label": _("Item Code"), "fieldname": "item_code", "fieldtype": "Link", "options": "Item", "width": 120},
+		{"label": _("CPN"), "fieldname": "custom_cpn", "fieldtype": "Data", "width": 120},
 		{"label": _("Item Name"), "fieldname": "item_name", "fieldtype": "Data", "width": 150},
 		{"label": _("Description"), "fieldname": "description", "fieldtype": "Data", "width": 200},
 		{"label": _("Brand"), "fieldname": "brand", "fieldtype": "Link", "options": "Brand", "width": 100},
@@ -35,10 +36,10 @@ def get_columns():
 		{"label": _("SO Price"), "fieldname": "so_price", "fieldtype": "Currency", "width": 100},
 		{"label": _("Delivery Date"), "fieldname": "delivery_date", "fieldtype": "Data", "width": 100},
 		{"label": _("SO Pending Qty"), "fieldname": "so_wise_pending_qty", "fieldtype": "Float", "width": 120},
+		{"label": _("SO Reserved Qty"), "fieldname": "so_reserved_qty", "fieldtype": "Float", "width": 120},
 		{"label": _("Pending PO Qty"), "fieldname": "pending_po_qty", "fieldtype": "Float", "width": 120},
 		{"label": _("Stock Qty"), "fieldname": "stock_qty", "fieldtype": "Float", "width": 100},
 		{"label": _("Reserved Stock"), "fieldname": "reserved_stock", "fieldtype": "Float", "width": 120},
-		{"label": _("SO Reserved Qty"), "fieldname": "so_reserved_qty", "fieldtype": "Float", "width": 120},
 		{"label": _("Free Stock"), "fieldname": "free_stock", "fieldtype": "Float", "width": 100},
 		{"label": _("Effective Stock"), "fieldname": "effective_stock_qty", "fieldtype": "Float", "width": 120},
 		{"label": _("Cust Ref Code"), "fieldname": "cust_ref_code", "fieldtype": "Data", "width": 120}
@@ -58,6 +59,7 @@ def get_data(filters):
 	base_query = f"""
 		SELECT
 			i.item_code AS item_code,
+			sod.custom_cpn AS custom_cpn,
 			i.item_name AS item_name,
 			i.description AS description,
 			i.brand AS brand,
