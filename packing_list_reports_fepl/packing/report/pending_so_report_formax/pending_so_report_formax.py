@@ -47,6 +47,8 @@ def get_columns():
 
 def get_data(filters):
 	conditions = ""
+	has_cpn = frappe.db.has_column('Sales Order Item', 'custom_cpn')
+	cpn_sql = "sod.custom_cpn AS custom_cpn," if has_cpn else "'' AS custom_cpn,"
 	if filters.get("customer"):
 		conditions += " AND so.customer = %(customer)s"
 	if filters.get("item_code"):
@@ -59,7 +61,7 @@ def get_data(filters):
 	base_query = f"""
 		SELECT
 			i.item_code AS item_code,
-			sod.custom_cpn AS custom_cpn,
+			{cpn_sql}
 			i.item_name AS item_name,
 			i.description AS description,
 			i.brand AS brand,
