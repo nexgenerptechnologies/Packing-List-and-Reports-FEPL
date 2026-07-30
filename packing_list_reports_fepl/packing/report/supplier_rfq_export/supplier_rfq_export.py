@@ -10,7 +10,7 @@ def execute(filters=None):
 
 def get_columns():
 	return [
-		{"label": _("RFQ ID"), "fieldname": "rfq_id", "fieldtype": "Link", "options": "Quotation", "width": 120},
+		{"label": _("RFQ ID"), "fieldname": "rfq_id", "fieldtype": "Link", "options": "Request for Quotation", "width": 120},
 		{"label": _("RFQ Date"), "fieldname": "rfq_date", "fieldtype": "Date", "width": 100},
 		{"label": _("Customer Name"), "fieldname": "customer_name", "fieldtype": "Data", "width": 150},
 		{"label": _("Project"), "fieldname": "project", "fieldtype": "Link", "options": "Project", "width": 120},
@@ -38,7 +38,7 @@ def get_data(filters):
 	if not filters.get("quotation"):
 		return []
 
-	q = frappe.get_doc("Quotation", filters.get("quotation"))
+	q = frappe.get_doc("Request for Quotation", filters.get("quotation"))
 	
 	item_codes = [d.item_code for d in q.items if d.item_code]
 	if not item_codes:
@@ -63,15 +63,15 @@ def get_data(filters):
 	data = []
 	for item in q.items:
 		brand = item.get("brand") or frappe.db.get_value("Item", item.item_code, "brand")
-		sop = item.get("sop_date") or item.get("custom_sop_date") or q.get("sop_date") or q.get("custom_sop_date")
-		mq = item.get("monthly_qty") or item.get("custom_monthly_qty") or item.qty
-		cd = item.get("customer_description") or item.get("custom_customer_description")
+		sop = item.get("custom_sop_date") or q.get("custom_sop_date")
+		mq = item.get("custom_monthly_qty") or item.qty
+		cd = item.get("custom_customer_description")
 		
 		row = {
 			"rfq_id": q.name,
 			"rfq_date": q.transaction_date,
-			"customer_name": q.customer_name,
-			"project": q.get("project"),
+			"customer_name": q.get("custom_customer_name"),
+			"project": q.get("custom_project"),
 			"sop_date": sop,
 			"item_code": item.item_code,
 			"item_name": item.item_name,
@@ -79,7 +79,7 @@ def get_data(filters):
 			"brand": brand,
 			"monthly_qty": mq,
 			"customer_description": cd,
-			"sales_partner": q.get("sales_partner"),
+			"sales_partner": q.get("custom_sales_partner"),
 			"stock_qty": stock_qty_map.get(item.item_code, 0.0),
 			"reserved_stock": reserved_stock_map.get(item.item_code, 0.0),
 			"supplier_mpn": "",

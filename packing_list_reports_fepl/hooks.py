@@ -16,3 +16,7 @@ doc_events = {
 		"validate": "packing_list_reports_fepl.packing.doctype.packing_list_settings.packing_list_settings.update_po_line_numbers"
 	}
 }
+
+fixtures = [
+    {"dt": "Custom Field", "filters": [["module", "=", "Packing"]]}
+]

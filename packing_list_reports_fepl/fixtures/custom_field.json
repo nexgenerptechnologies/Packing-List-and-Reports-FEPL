@@ -1,0 +1,58 @@
+[
+ {
+  "doctype": "Custom Field",
+  "dt": "Request for Quotation",
+  "fieldname": "custom_customer_name",
+  "label": "Customer Name",
+  "fieldtype": "Data",
+  "insert_after": "company",
+  "module": "Packing"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Request for Quotation",
+  "fieldname": "custom_project",
+  "label": "Project",
+  "fieldtype": "Link",
+  "options": "Project",
+  "insert_after": "custom_customer_name",
+  "module": "Packing"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Request for Quotation",
+  "fieldname": "custom_sales_partner",
+  "label": "Sales Partner",
+  "fieldtype": "Link",
+  "options": "Sales Partner",
+  "insert_after": "custom_project",
+  "module": "Packing"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Request for Quotation",
+  "fieldname": "custom_sop_date",
+  "label": "SOP Date",
+  "fieldtype": "Date",
+  "insert_after": "custom_sales_partner",
+  "module": "Packing"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Request for Quotation Item",
+  "fieldname": "custom_monthly_qty",
+  "label": "Monthly Qty",
+  "fieldtype": "Float",
+  "insert_after": "qty",
+  "module": "Packing"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Request for Quotation Item",
+  "fieldname": "custom_customer_description",
+  "label": "Customer Description",
+  "fieldtype": "Data",
+  "insert_after": "description",
+  "module": "Packing"
+ }
+]

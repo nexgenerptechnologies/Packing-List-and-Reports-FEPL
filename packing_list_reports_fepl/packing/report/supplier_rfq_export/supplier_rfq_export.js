@@ -2,9 +2,9 @@ frappe.query_reports["Supplier RFQ Export"] = {
 	"filters": [
 		{
 			"fieldname": "quotation",
-			"label": __("Quotation Number"),
+			"label": __("RFQ Number"),
 			"fieldtype": "Link",
-			"options": "Quotation",
+			"options": "Request for Quotation",
 			"reqd": 1
 		}
 	],
