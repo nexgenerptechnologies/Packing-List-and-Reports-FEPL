@@ -95,5 +95,5 @@ def download_supplier_rfq(rfq_name):
 	xlsx_file = make_xlsx(data, "Supplier RFQ")
 	
 	frappe.response["filename"] = f"{rfq_name}_Supplier_RFQ.xlsx"
-	frappe.response["filecontent"] = xlsx_file
+	frappe.response["filecontent"] = xlsx_file.getvalue()
 	frappe.response["type"] = "binary"
