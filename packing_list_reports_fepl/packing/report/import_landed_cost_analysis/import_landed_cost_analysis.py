@@ -43,11 +43,27 @@ def get_data(filters):
 
 	has_boe = frappe.db.exists("DocType", "Bill of Entry")
 	boe_join = ""
+	bcd_field = "0.0"
 	if has_boe:
 		boe_join = """
 			LEFT JOIN `tabBill of Entry Item` boei ON boei.purchase_invoice = pi.name AND boei.item = pii.item_code
 			LEFT JOIN `tabBill of Entry` boe ON boe.name = boei.parent AND boe.docstatus = 1
 		"""
+		
+		# Find the correct column name dynamically
+		columns = frappe.db.get_table_columns("Bill of Entry Item")
+		candidates = ["customs_and_additional_charges", "customs_and_additional_duty", "customs_duty", "total_customs_duty", "total_duty_amount"]
+		for cand in candidates:
+			if cand in columns:
+				bcd_field = f"boei.{cand}"
+				break
+		
+		if bcd_field == "0.0":
+			for col in columns:
+				if "customs" in col or "duty" in col:
+					if col not in ["customs_duty_payable_account", "customs_duty_expense_account"]: # exclude header accounts if accidentally mixed
+						bcd_field = f"boei.{col}"
+						break
 
 	sql = f"""
 		SELECT
@@ -65,7 +81,7 @@ def get_data(filters):
 			
 			{"boe.bill_of_entry_no" if has_boe else "''"} AS be_number,
 			{"boe.bill_of_entry_date" if has_boe else "NULL"} AS be_date,
-			{"boei.customs_and_additional_charges" if has_boe else "0.0"} AS total_bcd,
+			{bcd_field} AS total_bcd,
 			
 			(
 				SELECT SUM(lci.applicable_charges)
