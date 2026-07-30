@@ -37,7 +37,7 @@
   "fieldname": "custom_sop_date",
   "label": "SOP Date",
   "fieldtype": "Date",
-  "insert_after": "custom_sales_partner",
+  "insert_after": "status",
   "module": "Core"
  },
  {
