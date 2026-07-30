@@ -15,8 +15,7 @@
   "dt": "Request for Quotation",
   "fieldname": "custom_project",
   "label": "Project",
-  "fieldtype": "Link",
-  "options": "Project",
+  "fieldtype": "Data",
   "insert_after": "custom_customer_name",
   "module": "Core"
  },

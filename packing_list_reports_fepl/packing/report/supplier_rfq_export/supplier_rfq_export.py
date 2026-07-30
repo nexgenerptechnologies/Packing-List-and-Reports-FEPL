@@ -13,7 +13,7 @@ def get_columns():
 		{"label": _("RFQ ID"), "fieldname": "rfq_id", "fieldtype": "Link", "options": "Request for Quotation", "width": 120},
 		{"label": _("RFQ Date"), "fieldname": "rfq_date", "fieldtype": "Date", "width": 100},
 		{"label": _("Customer Name"), "fieldname": "customer_name", "fieldtype": "Data", "width": 150},
-		{"label": _("Project"), "fieldname": "project", "fieldtype": "Link", "options": "Project", "width": 120},
+		{"label": _("Project"), "fieldname": "project", "fieldtype": "Data", "width": 120},
 		{"label": _("SOP Date"), "fieldname": "sop_date", "fieldtype": "Date", "width": 100},
 		{"label": _("Item Code"), "fieldname": "item_code", "fieldtype": "Link", "options": "Item", "width": 120},
 		{"label": _("Item Name"), "fieldname": "item_name", "fieldtype": "Data", "width": 150},
