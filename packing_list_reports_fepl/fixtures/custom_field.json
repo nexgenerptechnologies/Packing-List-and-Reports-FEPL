@@ -1,5 +1,6 @@
 [
  {
+  "name": "Request for Quotation-custom_customer_name",
   "doctype": "Custom Field",
   "dt": "Request for Quotation",
   "fieldname": "custom_customer_name",
@@ -9,6 +10,7 @@
   "module": "Core"
  },
  {
+  "name": "Request for Quotation-custom_project",
   "doctype": "Custom Field",
   "dt": "Request for Quotation",
   "fieldname": "custom_project",
@@ -19,6 +21,7 @@
   "module": "Core"
  },
  {
+  "name": "Request for Quotation-custom_sales_partner",
   "doctype": "Custom Field",
   "dt": "Request for Quotation",
   "fieldname": "custom_sales_partner",
@@ -29,6 +32,7 @@
   "module": "Core"
  },
  {
+  "name": "Request for Quotation-custom_sop_date",
   "doctype": "Custom Field",
   "dt": "Request for Quotation",
   "fieldname": "custom_sop_date",
@@ -38,6 +42,7 @@
   "module": "Core"
  },
  {
+  "name": "Request for Quotation Item-custom_monthly_qty",
   "doctype": "Custom Field",
   "dt": "Request for Quotation Item",
   "fieldname": "custom_monthly_qty",
@@ -47,6 +52,7 @@
   "module": "Core"
  },
  {
+  "name": "Request for Quotation Item-custom_customer_description",
   "doctype": "Custom Field",
   "dt": "Request for Quotation Item",
   "fieldname": "custom_customer_description",
