@@ -6,7 +6,7 @@
   "label": "Customer Name",
   "fieldtype": "Data",
   "insert_after": "company",
-  "module": "Packing"
+  "module": "Core"
  },
  {
   "doctype": "Custom Field",
@@ -16,7 +16,7 @@
   "fieldtype": "Link",
   "options": "Project",
   "insert_after": "custom_customer_name",
-  "module": "Packing"
+  "module": "Core"
  },
  {
   "doctype": "Custom Field",
@@ -26,7 +26,7 @@
   "fieldtype": "Link",
   "options": "Sales Partner",
   "insert_after": "custom_project",
-  "module": "Packing"
+  "module": "Core"
  },
  {
   "doctype": "Custom Field",
@@ -35,7 +35,7 @@
   "label": "SOP Date",
   "fieldtype": "Date",
   "insert_after": "custom_sales_partner",
-  "module": "Packing"
+  "module": "Core"
  },
  {
   "doctype": "Custom Field",
@@ -44,7 +44,7 @@
   "label": "Monthly Qty",
   "fieldtype": "Float",
   "insert_after": "qty",
-  "module": "Packing"
+  "module": "Core"
  },
  {
   "doctype": "Custom Field",
@@ -53,6 +53,6 @@
   "label": "Customer Description",
   "fieldtype": "Data",
   "insert_after": "description",
-  "module": "Packing"
+  "module": "Core"
  }
 ]
