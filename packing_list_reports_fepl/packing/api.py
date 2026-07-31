@@ -159,7 +159,25 @@ def upload_supplier_excel(rfq_name, file_url):
 					if isinstance(q_date, datetime.datetime):
 						item.custom_quote_date = q_date.date()
 					elif q_date:
-						item.custom_quote_date = q_date
+						try:
+							from frappe.utils import getdate
+							# Try standard getdate
+							item.custom_quote_date = getdate(q_date)
+						except Exception:
+							pass
+						# If it's a string like 31/07/2026 or 31-07-2026
+						if isinstance(q_date, str):
+							q_str = q_date.replace('/', '-')
+							parts = q_str.split('-')
+							if len(parts) == 3:
+								# If first part is day (e.g. 31)
+								if len(parts[0]) <= 2 and int(parts[0]) > 12:
+									item.custom_quote_date = f"{parts[2]}-{parts[1]}-{parts[0]}"
+								# If first part is day but <= 12, assume DD-MM-YYYY if standard
+								elif len(parts[0]) <= 2 and len(parts[2]) == 4:
+									item.custom_quote_date = f"{parts[2]}-{parts[1]}-{parts[0]}"
+								else:
+									item.custom_quote_date = q_date
 				
 				if item.custom_sales_partner:
 					sales_partners_to_notify.add(item.custom_sales_partner)
