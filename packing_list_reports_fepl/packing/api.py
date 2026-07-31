@@ -76,7 +76,7 @@ def download_supplier_rfq(rfq_name):
 			"brand": brand,
 			"monthly_qty": mq,
 			"customer_description": cd,
-			"sales_partner": q.get("custom_sales_partner") or "",
+			"sales_partner": item.get("custom_sales_partner") or "",
 			"stock_qty": stock_qty_map.get(item.item_code, 0.0),
 			"reserved_stock": reserved_stock_map.get(item.item_code, 0.0),
 			"supplier_mpn": "",
@@ -97,3 +97,116 @@ def download_supplier_rfq(rfq_name):
 	frappe.response["filename"] = f"{rfq_name}_Supplier_RFQ.xlsx"
 	frappe.response["filecontent"] = xlsx_file.getvalue()
 	frappe.response["type"] = "binary"
+@frappe.whitelist(allow_guest=False)
+def upload_supplier_excel(rfq_name, file_url):
+	import openpyxl
+	from frappe.utils.file_manager import get_file_path
+	import datetime
+	from frappe.utils import flt
+
+	if not frappe.has_permission("Request for Quotation", "write"):
+		frappe.throw(_("Not permitted"))
+
+	file_path = get_file_path(file_url)
+	
+	try:
+		wb = openpyxl.load_workbook(file_path, data_only=True)
+		ws = wb.active
+	except Exception as e:
+		frappe.throw(_("Failed to read Excel file: {0}").format(str(e)))
+
+	rfq = frappe.get_doc("Request for Quotation", rfq_name)
+	
+	# Find headers
+	headers = [str(cell.value).strip() if cell.value else "" for cell in ws[1]]
+	
+	def get_idx(name):
+		return headers.index(name) if name in headers else -1
+
+	ic_idx = get_idx("Item Code")
+	mpn_idx = get_idx("Supplier MPN")
+	desc_idx = get_idx("Supplier Description")
+	make_idx = get_idx("MAKE")
+	spq_idx = get_idx("SPQ")
+	lt_idx = get_idx("Lead Time")
+	price_idx = get_idx("Price Per 1000")
+	date_idx = get_idx("Quote date")
+	remarks_idx = get_idx("Remarks")
+
+	if ic_idx == -1:
+		frappe.throw(_("Invalid Template: Missing 'Item Code' column."))
+
+	sales_partners_to_notify = set()
+	updated_items = 0
+
+	# Update Items
+	for row in ws.iter_rows(min_row=2, values_only=True):
+		item_code = row[ic_idx]
+		if not item_code: continue
+
+		for item in rfq.items:
+			if item.item_code == item_code:
+				if mpn_idx != -1: item.custom_supplier_mpn = str(row[mpn_idx] or "")
+				if desc_idx != -1: item.custom_supplier_description = str(row[desc_idx] or "")
+				if make_idx != -1: item.custom_make = str(row[make_idx] or "")
+				if spq_idx != -1: item.custom_spq = flt(row[spq_idx])
+				if lt_idx != -1: item.custom_lead_time = str(row[lt_idx] or "")
+				if price_idx != -1: item.custom_price_per_1000 = flt(row[price_idx])
+				if remarks_idx != -1: item.custom_remarks = str(row[remarks_idx] or "")
+				
+				if date_idx != -1:
+					q_date = row[date_idx]
+					if isinstance(q_date, datetime.datetime):
+						item.custom_quote_date = q_date.date()
+					elif q_date:
+						item.custom_quote_date = q_date
+				
+				if item.custom_sales_partner:
+					sales_partners_to_notify.add(item.custom_sales_partner)
+					
+				updated_items += 1
+				break
+				
+	if updated_items > 0:
+		rfq.save(ignore_permissions=True)
+		
+		# Notification 2: Notify Sales Partners
+		for sp_name in sales_partners_to_notify:
+			# Try to find a user matching the Sales Partner name
+			user_email = ""
+			try:
+				sp = frappe.get_doc("Sales Partner", sp_name)
+				if hasattr(sp, "user") and sp.user:
+					user_email = sp.user
+				elif hasattr(sp, "partner_email") and sp.partner_email:
+					user_email = sp.partner_email
+			except Exception:
+				pass
+				
+			if not user_email:
+				user_email = frappe.db.get_value("User", {"full_name": sp_name})
+			
+			if user_email and frappe.db.exists("User", user_email):
+				# Create Notification Log
+				doc = frappe.new_doc("Notification Log")
+				doc.subject = _("Supplier Pricing Uploaded for RFQ: {0}").format(rfq.name)
+				doc.email_content = _("The Product Manager has uploaded supplier pricing for your requested items on {0}.").format(rfq.name)
+				doc.for_user = user_email
+				doc.document_type = "Request for Quotation"
+				doc.document_name = rfq.name
+				doc.insert(ignore_permissions=True)
+				frappe.publish_realtime('notification', doc.subject, user=user_email)
+
+	return "Success"
+def notify_rfq_submit(doc, method):
+	if doc.get("custom_product_manager"):
+		pm_user = doc.custom_product_manager
+		if frappe.db.exists("User", pm_user):
+			nlog = frappe.new_doc("Notification Log")
+			nlog.subject = _("New Request for Quotation: {0}").format(doc.name)
+			nlog.email_content = _("A new Request for Quotation has been submitted and is ready to be sent to a supplier.")
+			nlog.for_user = pm_user
+			nlog.document_type = "Request for Quotation"
+			nlog.document_name = doc.name
+			nlog.insert(ignore_permissions=True)
+			frappe.publish_realtime('notification', nlog.subject, user=pm_user)

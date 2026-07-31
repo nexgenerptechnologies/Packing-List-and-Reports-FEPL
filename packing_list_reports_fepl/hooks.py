@@ -15,7 +15,11 @@ doctype_js = {
 doc_events = {
 	"Purchase Order": {
 		"validate": "packing_list_reports_fepl.packing.doctype.packing_list_settings.packing_list_settings.update_po_line_numbers"
+	},
+	"Request for Quotation": {
+		"on_submit": "packing_list_reports_fepl.packing.api.notify_rfq_submit"
 	}
+}
 }
 
 fixtures = [
