@@ -20,7 +20,6 @@ doc_events = {
 		"on_submit": "packing_list_reports_fepl.packing.api.notify_rfq_submit"
 	}
 }
-}
 
 fixtures = [
     {"dt": "Custom Field", "filters": [["module", "=", "Packing"]]}
