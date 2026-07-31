@@ -79,6 +79,7 @@ def get_data(filters):
 			DATE_FORMAT(sod.delivery_date, '%%d-%%m-%%Y') AS delivery_date,
 			(sod.qty - IFNULL(sod.delivered_qty, 0)) AS so_wise_pending_qty,
 			i.name AS item_docname,
+			sod.name AS sod_name,
 			so.customer AS customer_id
 		FROM `tabItem` i
 		INNER JOIN `tabSales Order Item` sod ON i.item_code = sod.item_code
@@ -121,14 +122,13 @@ def get_data(filters):
 	# 2.5 Bulk fetch SO Reserved Stock
 	so_reserved_data = frappe.db.sql("""
 		SELECT 
-			item_code, 
-			voucher_no,
+			voucher_detail_no,
 			SUM(reserved_qty - IFNULL(delivered_qty, 0)) AS reserved_qty
 		FROM `tabStock Reservation Entry`
 		WHERE docstatus = 1 AND voucher_type = 'Sales Order'
-		GROUP BY item_code, voucher_no
+		GROUP BY voucher_detail_no
 	""", as_dict=1)
-	so_reserved_map = {(r.item_code, r.voucher_no): flt(r.reserved_qty) for r in so_reserved_data}
+	so_reserved_map = {r.voucher_detail_no: flt(r.reserved_qty) for r in so_reserved_data}
 
 	# 3. Bulk fetch Pending PO Qty
 	po_data = frappe.db.sql("""
@@ -179,7 +179,7 @@ def get_data(filters):
 		row['reserved_stock'] = res_stock
 		
 		# SO Reserved Qty
-		so_res_stock = so_reserved_map.get((item_code, row['so_number']), 0.0)
+		so_res_stock = so_reserved_map.get(row.get('sod_name'), 0.0)
 		row['so_reserved_qty'] = so_res_stock
 		
 		# Free Stock
