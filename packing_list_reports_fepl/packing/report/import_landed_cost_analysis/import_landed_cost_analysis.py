@@ -17,8 +17,8 @@ def get_columns():
 		{"label": _("Item Name"), "fieldname": "item_name", "fieldtype": "Data", "width": 150},
 		{"label": _("Description"), "fieldname": "description", "fieldtype": "Data", "width": 200},
 		{"label": _("Qty"), "fieldname": "qty", "fieldtype": "Float", "width": 100},
-		{"label": _("Rate"), "fieldname": "rate", "fieldtype": "Currency", "width": 100},
-		{"label": _("Amount"), "fieldname": "amount", "fieldtype": "Currency", "width": 120},
+		{"label": _("Rate"), "fieldname": "rate", "fieldtype": "Currency", "options": "currency", "width": 100},
+		{"label": _("Amount"), "fieldname": "amount", "fieldtype": "Currency", "options": "currency", "width": 120},
 		{"label": _("Exchange Rate"), "fieldname": "conversion_rate", "fieldtype": "Float", "width": 100},
 		{"label": _("Price in INR"), "fieldname": "price_in_inr", "fieldtype": "Currency", "width": 120},
 		{"label": _("BE Number"), "fieldname": "be_number", "fieldtype": "Data", "width": 120},
@@ -31,7 +31,8 @@ def get_columns():
 		{"label": _("Customer Name"), "fieldname": "customer_name", "fieldtype": "Data", "width": 150},
 		{"label": _("Sale Price"), "fieldname": "sale_price", "fieldtype": "Currency", "width": 100},
 		{"label": _("Sales Invoice No."), "fieldname": "sales_invoice_no", "fieldtype": "Link", "options": "Sales Invoice", "width": 140},
-		{"label": _("Sales Invoice Date"), "fieldname": "sales_invoice_date", "fieldtype": "Date", "width": 100}
+		{"label": _("Sales Invoice Date"), "fieldname": "sales_invoice_date", "fieldtype": "Date", "width": 100},
+		{"label": _("Currency"), "fieldname": "currency", "fieldtype": "Data", "hidden": 1}
 	]
 
 def get_data(filters):
@@ -77,6 +78,7 @@ def get_data(filters):
 			pii.qty AS qty,
 			pii.rate AS rate,
 			pii.amount AS amount,
+			pi.currency AS currency,
 			pi.conversion_rate AS conversion_rate,
 			(pii.rate * pi.conversion_rate) AS price_in_inr,
 			
