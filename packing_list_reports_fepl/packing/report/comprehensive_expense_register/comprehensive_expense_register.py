@@ -39,7 +39,7 @@ def get_data(filters):
 		SELECT 
 			posting_date, voucher_type, voucher_no, account, party_type, party, 
 			debit, credit, against_voucher, remarks
-		FROM 	abGL Entry
+		FROM `tabGL Entry`
 		WHERE is_cancelled = 0 {conditions}
 		ORDER BY posting_date ASC, voucher_no ASC
 	""".format(conditions=conditions), filters, as_dict=1)
