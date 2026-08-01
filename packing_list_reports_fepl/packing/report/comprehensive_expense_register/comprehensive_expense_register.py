@@ -6,6 +6,13 @@ def execute(filters=None):
 	if not filters:
 		filters = {}
 
+	if not filters.get("company"):
+		filters["company"] = frappe.defaults.get_user_default("Company") or frappe.db.get_single_value('Global Defaults', 'default_company')
+
+	# Ensure defensive default dates
+	filters.setdefault("from_date", "1900-01-01")
+	filters.setdefault("to_date", "2100-12-31")
+
 	columns = get_columns(filters)
 	data = get_data(filters)
 	
@@ -112,7 +119,9 @@ def get_data(filters):
 	return data
 
 def get_conditions(filters):
-	conditions = " AND company = %(company)s"
+	conditions = ""
+	if filters.get("company"):
+		conditions += " AND company = %(company)s"
 	if filters.get("from_date"):
 		conditions += " AND posting_date >= %(from_date)s"
 	if filters.get("to_date"):
