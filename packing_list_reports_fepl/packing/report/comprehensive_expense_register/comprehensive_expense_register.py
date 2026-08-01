@@ -42,8 +42,8 @@ def get_data(filters):
 	# This strictly eliminates Customer Payment Entries and pure transfers!
 	vouchers_with_expenses = frappe.db.sql("""
 		SELECT DISTINCT gle.voucher_no
-		FROM 	abGL Entry gle
-		JOIN 	abAccount acc ON gle.account = acc.name
+		FROM `tabGL Entry` gle
+		JOIN `tabAccount` acc ON gle.account = acc.name
 		WHERE gle.is_cancelled = 0
 		AND (acc.root_type = 'Expense' OR acc.account_type IN ('Tax', 'Chargeable', 'Expense Account', 'Expenses Included In Valuation'))
 		AND gle.debit > 0
@@ -60,7 +60,7 @@ def get_data(filters):
 		SELECT 
 			posting_date, voucher_type, voucher_no, account, party_type, party, 
 			debit, credit, against_voucher, remarks, bill_no
-		FROM 	abGL Entry
+		FROM `tabGL Entry`
 		WHERE is_cancelled = 0 
 		AND voucher_no IN %s
 		ORDER BY posting_date ASC, voucher_no ASC
