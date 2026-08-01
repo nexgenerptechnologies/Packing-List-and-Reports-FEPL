@@ -29,46 +29,10 @@ frappe.query_reports["Comprehensive Expense Register"] = {
 			"options": "\nPurchase Invoice\nJournal Entry\nPayment Entry"
 		},
 		{
-			"fieldname": "party_type",
-			"label": __("Party Type"),
-			"fieldtype": "Link",
-			"options": "DocType",
-			"default": "Supplier",
-			"get_query": function() {
-				return {
-					filters: {
-						"name": ["in", ["Supplier", "Customer", "Employee"]]
-					}
-				}
-			}
-		},
-		{
 			"fieldname": "party",
-			"label": __("Party"),
-			"fieldtype": "Dynamic Link",
-			"options": "party_type"
-		},
-		{
-			"fieldname": "account",
-			"label": __("Account"),
+			"label": __("Supplier / Party"),
 			"fieldtype": "Link",
-			"options": "Account",
-			"get_query": function() {
-				var company = frappe.query_report.get_filter_value('company');
-				return {
-					filters: {
-						"company": company,
-						"is_group": 0
-					}
-				}
-			}
+			"options": "Supplier"
 		}
-	],
-	"formatter": function(value, row, column, data, default_formatter) {
-		value = default_formatter(value, row, column, data);
-		if (column.fieldname === 'particulars' && data.particulars) {
-			value = '<div style="white-space: pre-wrap; font-size: 12px; line-height: 1.4;">' + value + '</div>';
-		}
-		return value;
-	}
+	]
 };

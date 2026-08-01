@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 from frappe.utils import flt
+import re
 
 def execute(filters=None):
 	if not filters:
@@ -13,39 +14,57 @@ def execute(filters=None):
 	filters.setdefault("from_date", "1900-01-01")
 	filters.setdefault("to_date", "2100-12-31")
 
-	columns = get_columns(filters)
 	data = get_data(filters)
-	
-	# Dynamically add account columns based on the data found
-	account_columns = build_account_columns(data)
-	columns.extend(account_columns)
-	
+	columns = get_columns(filters, data)
+
 	return columns, data
 
-def get_columns(filters):
-	return [
+def get_columns(filters, data):
+	columns = [
 		{"label": _("Date"), "fieldname": "posting_date", "fieldtype": "Date", "width": 100},
-		{"label": _("Type"), "fieldname": "voucher_type", "fieldtype": "Data", "width": 120},
-		{"label": _("Vch No."), "fieldname": "voucher_no", "fieldtype": "Dynamic Link", "options": "voucher_type", "width": 140},
-		{"label": _("Particulars"), "fieldname": "particulars", "fieldtype": "Data", "width": 250},
+		{"label": _("Type"), "fieldname": "voucher_type", "fieldtype": "Data", "width": 130},
+		{"label": _("Vch No."), "fieldname": "voucher_no", "fieldtype": "Dynamic Link", "options": "voucher_type", "width": 150},
+		{"label": _("Particulars"), "fieldname": "party_name", "fieldtype": "Data", "width": 220},
+		{"label": _("Bill No / Ref"), "fieldname": "bill_no", "fieldtype": "Data", "width": 150},
 		{"label": _("Total Gross Value"), "fieldname": "total_gross_value", "fieldtype": "Currency", "width": 140}
 	]
+	
+	# Dynamically add account columns found in the data
+	dynamic_columns = build_account_columns(data)
+	columns.extend(dynamic_columns)
+	
+	return columns
 
 def get_data(filters):
 	conditions = get_conditions(filters)
 	
-	# Fetch all GL entries for the date range
+	# 1. Fetch only vouchers that have at least one debit to an Expense, Tax, or Asset account (e.g. Customs, Freight)
+	# This strictly eliminates Customer Payment Entries and pure transfers!
+	vouchers_with_expenses = frappe.db.sql("""
+		SELECT DISTINCT gle.voucher_no
+		FROM 	abGL Entry gle
+		JOIN 	abAccount acc ON gle.account = acc.name
+		WHERE gle.is_cancelled = 0
+		AND (acc.root_type = 'Expense' OR acc.account_type IN ('Tax', 'Chargeable', 'Expense Account', 'Expenses Included In Valuation'))
+		AND gle.debit > 0
+		{conditions}
+	""".format(conditions=conditions), filters, as_dict=1)
+
+	if not vouchers_with_expenses:
+		return []
+
+	voucher_list = [v.voucher_no for v in vouchers_with_expenses]
+
+	# 2. Fetch all GL entries for these specific expense vouchers
 	gl_entries = frappe.db.sql("""
 		SELECT 
 			posting_date, voucher_type, voucher_no, account, party_type, party, 
-			debit, credit, against_voucher, remarks
-		FROM `tabGL Entry`
-		WHERE is_cancelled = 0 {conditions}
+			debit, credit, against_voucher, remarks, bill_no
+		FROM 	abGL Entry
+		WHERE is_cancelled = 0 
+		AND voucher_no IN %s
 		ORDER BY posting_date ASC, voucher_no ASC
-	""".format(conditions=conditions), filters, as_dict=1)
-
-	if not gl_entries:
-		return []
+	""", (tuple(voucher_list),), as_dict=1)
 
 	# Group by voucher
 	vouchers = {}
@@ -58,35 +77,35 @@ def get_data(filters):
 	data = []
 	for key, entries in vouchers.items():
 		v_type, v_no = key
-		
-		# Identify the primary party/credit account and total gross value
-		party_name = ""
-		total_gross_value = 0.0
 		posting_date = entries[0].posting_date
 		
-		# Look for actual party first
+		# Find the Supplier / Main Source of Credit
+		party_name = ""
+		bill_no = ""
+		
+		# Look for actual party
 		for gle in entries:
 			if gle.party:
 				party_name = gle.party
-				break
-				
+			if gle.bill_no or gle.against_voucher:
+				bill_no = gle.bill_no or gle.against_voucher
+
 		# If no party, find the main credited account (e.g. Bank or Cash)
 		if not party_name:
 			credits = [e for e in entries if e.credit > 0]
 			if credits:
-				# Sort by highest credit to guess the main account
 				credits.sort(key=lambda x: x.credit, reverse=True)
 				party_name = credits[0].account
-				
-		# Calculate total gross value (Total Credit of the voucher)
+
+		if not bill_no:
+			bill_no = v_no
+
+		# Calculate total gross value (Total Credit to the party/source)
 		total_gross_value = sum(e.credit for e in entries)
-		
-		# We want to ignore the primary party account from the dynamic columns so we don't double count
-		# But a voucher might have multiple party entries. 
-		# Let's collect the Net (Debit - Credit) for all accounts.
+
 		account_amounts = {}
 		for gle in entries:
-			# If this is the exact party or account we identified as the source, skip it for the breakdown
+			# Skip the source party account from the dynamic columns
 			if gle.party and gle.party == party_name:
 				continue
 			if not gle.party and gle.account == party_name:
@@ -96,23 +115,21 @@ def get_data(filters):
 			if net_amount != 0:
 				account_amounts[gle.account] = account_amounts.get(gle.account, 0.0) + net_amount
 
-		# Format Particulars exactly like Tally (Party Name \n Voucher No / Bill No)
-		bill_no = entries[0].against_voucher or v_no
-		particulars = f"{party_name}\n{bill_no}"
-
 		row = {
 			"posting_date": posting_date,
 			"voucher_type": v_type,
 			"voucher_no": v_no,
-			"particulars": particulars,
+			"party_name": party_name,
+			"bill_no": bill_no,
 			"total_gross_value": total_gross_value,
 		}
 		
 		# Merge the dynamic account amounts into the row dictionary
 		for acc, amt in account_amounts.items():
-			# Replace spaces and special chars to make a safe fieldname
 			safe_acc = get_safe_fieldname(acc)
 			row[safe_acc] = amt
+			# Store the original readable account name in the row metadata so columns use the exact Chart of Accounts name!
+			row["_acc_name_" + safe_acc] = acc
 			
 		data.append(row)
 
@@ -121,50 +138,41 @@ def get_data(filters):
 def get_conditions(filters):
 	conditions = ""
 	if filters.get("company"):
-		conditions += " AND company = %(company)s"
+		conditions += " AND gle.company = %(company)s"
 	if filters.get("from_date"):
-		conditions += " AND posting_date >= %(from_date)s"
+		conditions += " AND gle.posting_date >= %(from_date)s"
 	if filters.get("to_date"):
-		conditions += " AND posting_date <= %(to_date)s"
+		conditions += " AND gle.posting_date <= %(to_date)s"
 	if filters.get("voucher_type"):
-		conditions += " AND voucher_type = %(voucher_type)s"
-	if filters.get("party_type"):
-		conditions += " AND party_type = %(party_type)s"
+		conditions += " AND gle.voucher_type = %(voucher_type)s"
 	if filters.get("party"):
-		conditions += " AND party = %(party)s"
-	if filters.get("account"):
-		conditions += " AND voucher_no IN (SELECT voucher_no FROM `tabGL Entry` WHERE account = %(account)s)"
+		conditions += " AND gle.party = %(party)s"
 	return conditions
 
 def build_account_columns(data):
-	# Scan all data rows to find dynamic account columns
-	dynamic_fields = set()
+	# Scan all data rows to find dynamic account columns and their exact real names
+	dynamic_fields = {}
 	for row in data:
-		for key in row.keys():
-			if key not in ["posting_date", "voucher_type", "voucher_no", "particulars", "total_gross_value"]:
-				dynamic_fields.add(key)
+		for key, val in row.items():
+			if key.startswith("_acc_name_"):
+				safe_key = key.replace("_acc_name_", "")
+				dynamic_fields[safe_key] = val
 				
-	# Sort them alphabetically (or could sort by expense group)
-	dynamic_fields = sorted(list(dynamic_fields))
-	
 	columns = []
-	for field in dynamic_fields:
-		# Extract original account name from the safe fieldname. 
-		# Actually, it's easier to just use the safe fieldname for both, but the label should look nice.
-		label = field.replace("___", " & ").replace("__", " ").upper()
+	for safe_key in sorted(dynamic_fields.keys()):
+		real_name = dynamic_fields[safe_key]
+		# Shorten the label by removing company abbreviation if present (e.g. ' - FEPL')
+		clean_label = re.sub(r' - [A-Za-z0-9]+$', '', real_name).upper()
 		columns.append({
-			"label": label,
-			"fieldname": field,
+			"label": clean_label,
+			"fieldname": safe_key,
 			"fieldtype": "Currency",
-			"width": 140
+			"width": 150
 		})
 		
 	return columns
 
 def get_safe_fieldname(account_name):
 	# ERPNext fieldnames cannot contain spaces or special chars
-	import re
 	safe = re.sub(r'[^a-zA-Z0-9]', '_', account_name)
-	# Fieldnames can't be too long, but dictionaries don't strictly care in script reports. 
-	# However, frappe datatable sometimes complains if fieldnames are weird.
 	return safe.lower()
