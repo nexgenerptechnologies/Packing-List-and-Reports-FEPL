@@ -25,35 +25,49 @@ frappe.query_reports["Comprehensive Expense Register"] = {
 		{
 			"fieldname": "voucher_type",
 			"label": __("Voucher Type"),
-			"fieldtype": "Link",
-			"options": "DocType",
-			"get_query": function() {
-				return {
-					filters: {
-						"name": ["in", ["Purchase Invoice", "Journal Entry", "Payment Entry"]]
-					}
-				}
-			}
+			"fieldtype": "Select",
+			"options": "\nPurchase Invoice\nJournal Entry\nPayment Entry"
 		},
 		{
 			"fieldname": "party_type",
 			"label": __("Party Type"),
 			"fieldtype": "Link",
 			"options": "DocType",
-			"default": "Supplier"
+			"default": "Supplier",
+			"get_query": function() {
+				return {
+					filters: {
+						"name": ["in", ["Supplier", "Customer", "Employee"]]
+					}
+				}
+			}
 		},
 		{
 			"fieldname": "party",
 			"label": __("Party"),
 			"fieldtype": "Dynamic Link",
 			"options": "party_type"
+		},
+		{
+			"fieldname": "account",
+			"label": __("Account"),
+			"fieldtype": "Link",
+			"options": "Account",
+			"get_query": function() {
+				var company = frappe.query_report.get_filter_value('company');
+				return {
+					filters: {
+						"company": company,
+						"is_group": 0
+					}
+				}
+			}
 		}
 	],
 	"formatter": function(value, row, column, data, default_formatter) {
 		value = default_formatter(value, row, column, data);
 		if (column.fieldname === 'particulars' && data.particulars) {
-			// Allow multi-line display for Party + Voucher
-			value = <div style="white-space: pre-wrap; font-size: 12px; line-height: 1.4;"> + value + </div>;
+			value = '<div style="white-space: pre-wrap; font-size: 12px; line-height: 1.4;">' + value + '</div>';
 		}
 		return value;
 	}

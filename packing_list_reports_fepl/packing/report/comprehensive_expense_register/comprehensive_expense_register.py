@@ -132,6 +132,8 @@ def get_conditions(filters):
 		conditions += " AND party_type = %(party_type)s"
 	if filters.get("party"):
 		conditions += " AND party = %(party)s"
+	if filters.get("account"):
+		conditions += " AND voucher_no IN (SELECT voucher_no FROM `tabGL Entry` WHERE account = %(account)s)"
 	return conditions
 
 def build_account_columns(data):
