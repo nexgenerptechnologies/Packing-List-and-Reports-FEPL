@@ -55,11 +55,23 @@ def get_data(filters):
 
 	voucher_list = [v.voucher_no for v in vouchers_with_expenses]
 
+	# Fetch supplier invoice number (bill_no) from Purchase Invoices
+	pi_bill_map = {}
+	try:
+		pi_data = frappe.db.sql("""
+			SELECT name, bill_no FROM `tabPurchase Invoice` WHERE name IN %s
+		""", (tuple(voucher_list),), as_dict=1)
+		for pi in pi_data:
+			if pi.bill_no:
+				pi_bill_map[pi.name] = pi.bill_no
+	except Exception:
+		pass
+
 	# 2. Fetch all GL entries for these specific expense vouchers
 	gl_entries = frappe.db.sql("""
 		SELECT 
 			posting_date, voucher_type, voucher_no, account, party_type, party, 
-			debit, credit, against_voucher, remarks, bill_no
+			debit, credit, against_voucher, remarks
 		FROM `tabGL Entry`
 		WHERE is_cancelled = 0 
 		AND voucher_no IN %s
@@ -87,8 +99,11 @@ def get_data(filters):
 		for gle in entries:
 			if gle.party:
 				party_name = gle.party
-			if gle.bill_no or gle.against_voucher:
-				bill_no = gle.bill_no or gle.against_voucher
+			if gle.against_voucher:
+				bill_no = gle.against_voucher
+
+		if not bill_no and v_no in pi_bill_map:
+			bill_no = pi_bill_map[v_no]
 
 		# If no party, find the main credited account (e.g. Bank or Cash)
 		if not party_name:
