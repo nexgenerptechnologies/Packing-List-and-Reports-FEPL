@@ -39,6 +39,7 @@ def get_columns(filters, data):
 def get_data(filters):
 	conditions = get_conditions(filters)
 	account_list = get_accounts_filter(filters)
+	party_list = get_parties_filter(filters)
 	
 	# If accounts are filtered:
 	if account_list:
@@ -47,7 +48,20 @@ def get_data(filters):
 	else:
 		account_condition = " AND (acc.root_type = 'Expense' OR acc.account_type IN ('Tax', 'Chargeable', 'Expense Account', 'Expenses Included In Valuation'))"
 
-	# 1. Fetch vouchers that match the selected expense accounts or all general expenses
+	# If parties are filtered:
+	if party_list:
+		party_condition = """
+			AND gle.voucher_no IN (
+				SELECT DISTINCT voucher_no 
+				FROM `tabGL Entry` 
+				WHERE party IN %(selected_parties)s AND is_cancelled = 0
+			)
+		"""
+		filters["selected_parties"] = tuple(party_list)
+	else:
+		party_condition = ""
+
+	# 1. Fetch vouchers that match the selected expense accounts or all general expenses, and party condition
 	vouchers_with_expenses = frappe.db.sql("""
 		SELECT DISTINCT gle.voucher_no
 		FROM `tabGL Entry` gle
@@ -55,8 +69,9 @@ def get_data(filters):
 		WHERE gle.is_cancelled = 0
 		AND gle.debit > 0
 		{account_condition}
+		{party_condition}
 		{conditions}
-	""".format(account_condition=account_condition, conditions=conditions), filters, as_dict=1)
+	""".format(account_condition=account_condition, party_condition=party_condition, conditions=conditions), filters, as_dict=1)
 
 	if not vouchers_with_expenses:
 		return []
@@ -168,9 +183,26 @@ def get_conditions(filters):
 		conditions += " AND gle.posting_date <= %(to_date)s"
 	if filters.get("voucher_type"):
 		conditions += " AND gle.voucher_type = %(voucher_type)s"
-	if filters.get("party"):
-		conditions += " AND gle.party = %(party)s"
 	return conditions
+
+def get_parties_filter(filters):
+	raw_party = filters.get("party")
+	if not raw_party:
+		return []
+	
+	if isinstance(raw_party, str):
+		try:
+			parsed = json.loads(raw_party)
+			if isinstance(parsed, list):
+				raw_party = parsed
+			else:
+				raw_party = [raw_party]
+		except Exception:
+			raw_party = [raw_party]
+	elif not isinstance(raw_party, list):
+		raw_party = [raw_party]
+
+	return [p.strip() for p in raw_party if p and p.strip()]
 
 def get_accounts_filter(filters):
 	raw_account = filters.get("account")

@@ -31,8 +31,11 @@ frappe.query_reports["Comprehensive Expense Register"] = {
 		{
 			"fieldname": "party",
 			"label": __("Supplier / Party"),
-			"fieldtype": "Link",
-			"options": "Supplier"
+			"fieldtype": "MultiSelectList",
+			"options": "Supplier",
+			"get_data": function(txt) {
+				return frappe.db.get_link_options("Supplier", txt);
+			}
 		},
 		{
 			"fieldname": "account",
