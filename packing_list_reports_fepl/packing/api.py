@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import flt
+from frappe.utils import flt, getdate
 from frappe.utils.xlsxutils import make_xlsx
 
 @frappe.whitelist(allow_guest=False)
@@ -57,7 +57,6 @@ def download_supplier_rfq(rfq_name):
 		reserved_stock_map = {r.item_code: flt(r.reserved_qty) for r in reserved_data}
 
 	data = [[c["label"] for c in columns]]
-	
 	for item in q.items:
 		brand = item.get("brand") or frappe.db.get_value("Item", item.item_code, "brand") or ""
 		sop = item.get("custom_sop_date") or q.get("custom_sop_date") or ""
@@ -97,12 +96,12 @@ def download_supplier_rfq(rfq_name):
 	frappe.response["filename"] = f"{rfq_name}_Supplier_RFQ.xlsx"
 	frappe.response["filecontent"] = xlsx_file.getvalue()
 	frappe.response["type"] = "binary"
+
 @frappe.whitelist(allow_guest=False)
 def upload_supplier_excel(rfq_name, file_url):
 	import openpyxl
 	from frappe.utils.file_manager import get_file_path
 	import datetime
-	from frappe.utils import flt
 
 	if not frappe.has_permission("Request for Quotation", "write"):
 		frappe.throw(_("Not permitted"))
@@ -160,20 +159,15 @@ def upload_supplier_excel(rfq_name, file_url):
 						item.custom_quote_date = q_date.date()
 					elif q_date:
 						try:
-							from frappe.utils import getdate
-							# Try standard getdate
 							item.custom_quote_date = getdate(q_date)
 						except Exception:
 							pass
-						# If it's a string like 31/07/2026 or 31-07-2026
 						if isinstance(q_date, str):
 							q_str = q_date.replace('/', '-')
 							parts = q_str.split('-')
 							if len(parts) == 3:
-								# If first part is day (e.g. 31)
 								if len(parts[0]) <= 2 and int(parts[0]) > 12:
 									item.custom_quote_date = f"{parts[2]}-{parts[1]}-{parts[0]}"
-								# If first part is day but <= 12, assume DD-MM-YYYY if standard
 								elif len(parts[0]) <= 2 and len(parts[2]) == 4:
 									item.custom_quote_date = f"{parts[2]}-{parts[1]}-{parts[0]}"
 								else:
@@ -190,7 +184,6 @@ def upload_supplier_excel(rfq_name, file_url):
 		
 		# Notification 2: Notify Sales Partners
 		for sp_name in sales_partners_to_notify:
-			# Try to find a user matching the Sales Partner name
 			user_email = ""
 			try:
 				sp = frappe.get_doc("Sales Partner", sp_name)
@@ -205,7 +198,6 @@ def upload_supplier_excel(rfq_name, file_url):
 				user_email = frappe.db.get_value("User", {"full_name": sp_name})
 			
 			if user_email and frappe.db.exists("User", user_email):
-				# Create Notification Log
 				doc = frappe.new_doc("Notification Log")
 				doc.subject = _("Supplier Pricing Uploaded for RFQ: {0}").format(rfq.name)
 				doc.email_content = _("The Product Manager has uploaded supplier pricing for your requested items on {0}.").format(rfq.name)
@@ -216,6 +208,192 @@ def upload_supplier_excel(rfq_name, file_url):
 				frappe.publish_realtime('notification', doc.subject, user=user_email)
 
 	return "Success"
+
+@frappe.whitelist(allow_guest=False)
+def upload_quotation_excel(file_url):
+	import openpyxl
+	from frappe.utils.file_manager import get_file_path
+	import datetime
+
+	if not frappe.has_permission("Quotation", "read"):
+		frappe.throw(_("Not permitted"))
+
+	file_path = get_file_path(file_url)
+	
+	try:
+		wb = openpyxl.load_workbook(file_path, data_only=True)
+		ws = wb.active
+	except Exception as e:
+		frappe.throw(_("Failed to read Excel file: {0}").format(str(e)))
+
+	# Find headers (case-insensitive & stripped)
+	headers = [str(cell.value).strip() if cell.value is not None else "" for cell in ws[1]]
+	
+	def get_idx(candidates):
+		if isinstance(candidates, str):
+			candidates = [candidates]
+		for c in candidates:
+			c_lower = c.lower()
+			for idx, h in enumerate(headers):
+				if h.lower() == c_lower:
+					return idx
+		return -1
+
+	cust_idx = get_idx(["Customer Name", "Customer"])
+	proj_idx = get_idx(["Project", "Project Name"])
+	sop_idx = get_idx(["SOP Date", "SOP"])
+	ic_idx = get_idx(["Item Code", "Part Number", "Part No"])
+	in_idx = get_idx(["Item Name", "Part Name"])
+	desc_idx = get_idx(["Description", "Item Description"])
+	brand_idx = get_idx(["Brand", "Make"])
+	mq_idx = get_idx(["Monthly Qty", "Monthly Quantity", "Qty", "Quantity"])
+	cd_idx = get_idx(["Customer Description", "Cust Description", "Cust Desc"])
+	sp_idx = get_idx(["Sales Partner", "Partner"])
+
+	header_customer = ""
+	header_project = ""
+
+	items = []
+	unmatched = []
+
+	for row in ws.iter_rows(min_row=2, values_only=True):
+		# Skip completely empty rows
+		if not any(row):
+			continue
+
+		row_cust = str(row[cust_idx]).strip() if cust_idx != -1 and row[cust_idx] else ""
+		row_proj = str(row[proj_idx]).strip() if proj_idx != -1 and row[proj_idx] else ""
+		if row_cust and not header_customer:
+			match_cust = frappe.db.get_value("Customer", {"customer_name": row_cust}, "name") or frappe.db.get_value("Customer", {"name": row_cust}, "name")
+			header_customer = match_cust or row_cust
+		if row_proj and not header_project:
+			header_project = row_proj
+
+		raw_ic = str(row[ic_idx]).strip() if ic_idx != -1 and row[ic_idx] else ""
+		raw_in = str(row[in_idx]).strip() if in_idx != -1 and row[in_idx] else ""
+		raw_desc = str(row[desc_idx]).strip() if desc_idx != -1 and row[desc_idx] else ""
+
+		# 3-Way Item Matching Logic:
+		matched_item = None
+		# 1. Match on Item Code
+		if raw_ic:
+			matched_item = frappe.db.get_value("Item", {"name": raw_ic}, ["name", "item_name", "description", "stock_uom", "custom_msp", "brand"], as_dict=1)
+			if not matched_item:
+				matched_item = frappe.db.get_value("Item", {"item_code": raw_ic}, ["name", "item_code", "item_name", "description", "stock_uom", "custom_msp", "brand"], as_dict=1)
+
+		# 2. Match on Item Name
+		if not matched_item and raw_in:
+			matched_item = frappe.db.get_value("Item", {"item_name": raw_in}, ["name", "item_code", "item_name", "description", "stock_uom", "custom_msp", "brand"], as_dict=1)
+
+		# 3. Match on Description
+		if not matched_item and raw_desc:
+			matched_item = frappe.db.get_value("Item", {"description": raw_desc}, ["name", "item_code", "item_name", "description", "stock_uom", "custom_msp", "brand"], as_dict=1)
+
+		if not matched_item:
+			unmatched_label = raw_ic or raw_in or raw_desc or "Row with blank item info"
+			unmatched.append(unmatched_label)
+			continue
+
+		item_code = matched_item.get("name") or matched_item.get("item_code")
+		item_name = matched_item.get("item_name") or raw_in or item_code
+		description = matched_item.get("description") or raw_desc or item_name
+		uom = matched_item.get("stock_uom") or "Nos"
+		msp = flt(matched_item.get("custom_msp") or 0.0)
+
+		# Fetch Last Sale Rate (latest submitted Sales Invoice)
+		last_sale_rate = 0.0
+		if header_customer:
+			c_rate = frappe.db.sql("""
+				SELECT sii.rate 
+				FROM `tabSales Invoice Item` sii 
+				JOIN `tabSales Invoice` si ON sii.parent = si.name 
+				WHERE sii.item_code = %s AND si.customer = %s AND si.docstatus = 1 
+				ORDER BY si.posting_date DESC, sii.creation DESC 
+				LIMIT 1
+			""", (item_code, header_customer))
+			if c_rate and c_rate[0][0]:
+				last_sale_rate = flt(c_rate[0][0])
+
+		if not last_sale_rate:
+			g_rate = frappe.db.sql("""
+				SELECT rate 
+				FROM `tabSales Invoice Item` 
+				WHERE item_code = %s AND docstatus = 1 
+				ORDER BY creation DESC 
+				LIMIT 1
+			""", (item_code,))
+			if g_rate and g_rate[0][0]:
+				last_sale_rate = flt(g_rate[0][0])
+
+		if not last_sale_rate:
+			ip_rate = frappe.db.get_value("Item Price", {"item_code": item_code, "selling": 1}, "price_list_rate")
+			if ip_rate:
+				last_sale_rate = flt(ip_rate)
+
+		# Calculate Stock Balance (SUM actual_qty from tabBin)
+		bin_qty = frappe.db.sql("""
+			SELECT SUM(actual_qty) FROM `tabBin` WHERE item_code = %s
+		""", (item_code,))
+		stock_balance = flt(bin_qty[0][0]) if bin_qty and bin_qty[0][0] else 0.0
+
+		# Calculate Reserved Stock (Pending SO Report Formax formula)
+		res_stock_data = frappe.db.sql("""
+			SELECT SUM(reserved_qty - IFNULL(delivered_qty, 0))
+			FROM `tabStock Reservation Entry`
+			WHERE docstatus = 1 AND item_code = %s
+		""", (item_code,))
+		reserved_stock = flt(res_stock_data[0][0]) if res_stock_data and res_stock_data[0][0] else 0.0
+
+		# Monthly Qty
+		monthly_qty = flt(row[mq_idx]) if mq_idx != -1 and row[mq_idx] else 0.0
+		qty = monthly_qty if monthly_qty > 0 else 1.0
+
+		# SOP Date
+		sop_val = ""
+		if sop_idx != -1 and row[sop_idx]:
+			s_val = row[sop_idx]
+			if isinstance(s_val, (datetime.datetime, datetime.date)):
+				sop_val = s_val.strftime("%Y-%m-%d")
+			elif isinstance(s_val, str):
+				try:
+					sop_val = str(getdate(s_val))
+				except Exception:
+					sop_val = s_val
+
+		# Customer Description
+		cust_desc = str(row[cd_idx]).strip() if cd_idx != -1 and row[cd_idx] else ""
+
+		# Sales Partner
+		sales_partner = ""
+		if sp_idx != -1 and row[sp_idx]:
+			sp_val = str(row[sp_idx]).strip()
+			sp_match = frappe.db.get_value("Sales Partner", {"partner_name": sp_val}, "name") or frappe.db.get_value("Sales Partner", {"name": sp_val}, "name")
+			sales_partner = sp_match or sp_val
+
+		items.append({
+			"item_code": item_code,
+			"item_name": item_name,
+			"description": description,
+			"uom": uom,
+			"qty": qty,
+			"rate": last_sale_rate,
+			"amount": qty * last_sale_rate,
+			"stock_balance": stock_balance,
+			"custom_reserved_stock": reserved_stock,
+			"custom_msp": msp,
+			"custom_sop_date": sop_val,
+			"custom_monthly_qty": monthly_qty,
+			"custom_customer_description": cust_desc,
+			"custom_sales_partner": sales_partner
+		})
+
+	return {
+		"customer": header_customer,
+		"project": header_project,
+		"items": items,
+		"unmatched": unmatched
+	}
+
 def notify_rfq_submit(doc, method):
 	if doc.get("custom_product_manager"):
 		pm_user = doc.custom_product_manager
@@ -228,3 +406,19 @@ def notify_rfq_submit(doc, method):
 			nlog.document_name = doc.name
 			nlog.insert(ignore_permissions=True)
 			frappe.publish_realtime('notification', nlog.subject, user=pm_user)
+
+def after_migrate():
+	# 1. Clean up legacy custom fields on RFQ header if present
+	for fld in ["Request for Quotation-custom_sales_partner", "Request for Quotation-sales_partner"]:
+		if frappe.db.exists("Custom Field", fld):
+			try:
+				frappe.delete_doc("Custom Field", fld, ignore_permissions=True)
+			except Exception:
+				pass
+			
+	# 2. Position Product Manager right after Project on RFQ
+	if frappe.db.exists("Custom Field", "Request for Quotation-custom_product_manager"):
+		try:
+			frappe.db.set_value("Custom Field", "Request for Quotation-custom_product_manager", "insert_after", "custom_project")
+		except Exception:
+			pass

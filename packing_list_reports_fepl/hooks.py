@@ -9,7 +9,8 @@ doctype_js = {
     "Sales Invoice": "public/js/sales_invoice.js",
     "Delivery Note": "public/js/delivery_note.js",
     "Purchase Receipt": "public/js/purchase_receipt.js",
-    "Request for Quotation": "public/js/request_for_quotation.js"
+    "Request for Quotation": "public/js/request_for_quotation.js",
+    "Quotation": "public/js/quotation.js"
 }
 
 doc_events = {
@@ -20,6 +21,8 @@ doc_events = {
 		"on_submit": "packing_list_reports_fepl.packing.api.notify_rfq_submit"
 	}
 }
+
+after_migrate = "packing_list_reports_fepl.packing.api.after_migrate"
 
 fixtures = [
     {"dt": "Custom Field", "filters": [["module", "=", "Packing"]]}

@@ -1,154 +1,225 @@
 [
     {
-        "name":  "Request for Quotation-custom_customer_name",
-        "doctype":  "Custom Field",
         "dt":  "Request for Quotation",
-        "fieldname":  "custom_customer_name",
-        "label":  "Customer Name",
-        "fieldtype":  "Data",
         "insert_after":  "company",
-        "module":  "Core"
+        "name":  "Request for Quotation-custom_customer_name",
+        "label":  "Customer Name",
+        "module":  "Packing",
+        "fieldname":  "custom_customer_name",
+        "fieldtype":  "Data",
+        "doctype":  "Custom Field"
     },
     {
-        "name":  "Request for Quotation-custom_project",
-        "doctype":  "Custom Field",
         "dt":  "Request for Quotation",
-        "fieldname":  "custom_project",
-        "label":  "Project",
-        "fieldtype":  "Data",
         "insert_after":  "custom_customer_name",
-        "module":  "Core"
-    },
-    {
-        "name":  "Request for Quotation Item-custom_sales_partner",
-        "doctype":  "Custom Field",
-        "dt":  "Request for Quotation Item",
-        "fieldname":  "custom_sales_partner",
-        "label":  "Sales Partner",
-        "fieldtype":  "Link",
-        "options":  "Sales Partner",
-        "insert_after":  "item_code",
-        "module":  "Core"
-    },
-    {
-        "name":  "Request for Quotation-custom_sop_date",
-        "doctype":  "Custom Field",
-        "dt":  "Request for Quotation",
-        "fieldname":  "custom_sop_date",
-        "label":  "SOP Date",
-        "fieldtype":  "Date",
-        "insert_after":  "status",
-        "module":  "Core"
-    },
-    {
-        "name":  "Request for Quotation Item-custom_monthly_qty",
-        "doctype":  "Custom Field",
-        "dt":  "Request for Quotation Item",
-        "fieldname":  "custom_monthly_qty",
-        "label":  "Monthly Qty",
-        "fieldtype":  "Float",
-        "insert_after":  "qty",
-        "module":  "Core"
-    },
-    {
-        "name":  "Request for Quotation Item-custom_customer_description",
-        "doctype":  "Custom Field",
-        "dt":  "Request for Quotation Item",
-        "fieldname":  "custom_customer_description",
-        "label":  "Customer Description",
+        "name":  "Request for Quotation-custom_project",
+        "label":  "Project",
+        "module":  "Packing",
+        "fieldname":  "custom_project",
         "fieldtype":  "Data",
-        "insert_after":  "description",
-        "module":  "Core"
-    },
-    {
-        "name":  "Request for Quotation Item-custom_supplier_mpn",
-        "doctype":  "Custom Field",
-        "dt":  "Request for Quotation Item",
-        "fieldname":  "custom_supplier_mpn",
-        "label":  "Supplier MPN",
-        "fieldtype":  "Data",
-        "insert_after":  "item_code",
-        "module":  "Core"
-    },
-    {
-        "name":  "Request for Quotation Item-custom_supplier_description",
-        "doctype":  "Custom Field",
-        "dt":  "Request for Quotation Item",
-        "fieldname":  "custom_supplier_description",
-        "label":  "Supplier Description",
-        "fieldtype":  "Small Text",
-        "insert_after":  "description",
-        "module":  "Core"
-    },
-    {
-        "name":  "Request for Quotation Item-custom_make",
-        "doctype":  "Custom Field",
-        "dt":  "Request for Quotation Item",
-        "fieldname":  "custom_make",
-        "label":  "MAKE",
-        "fieldtype":  "Data",
-        "insert_after":  "custom_supplier_description",
-        "module":  "Core"
-    },
-    {
-        "name":  "Request for Quotation Item-custom_spq",
-        "doctype":  "Custom Field",
-        "dt":  "Request for Quotation Item",
-        "fieldname":  "custom_spq",
-        "label":  "SPQ",
-        "fieldtype":  "Float",
-        "insert_after":  "qty",
-        "module":  "Core"
-    },
-    {
-        "name":  "Request for Quotation Item-custom_lead_time",
-        "doctype":  "Custom Field",
-        "dt":  "Request for Quotation Item",
-        "fieldname":  "custom_lead_time",
-        "label":  "Lead Time",
-        "fieldtype":  "Data",
-        "insert_after":  "uom",
-        "module":  "Core"
-    },
-    {
-        "name":  "Request for Quotation Item-custom_price_per_1000",
-        "doctype":  "Custom Field",
-        "dt":  "Request for Quotation Item",
-        "fieldname":  "custom_price_per_1000",
-        "label":  "Price Per 1000",
-        "fieldtype":  "Currency",
-        "insert_after":  "rate",
-        "module":  "Core"
-    },
-    {
-        "name":  "Request for Quotation Item-custom_quote_date",
-        "doctype":  "Custom Field",
-        "dt":  "Request for Quotation Item",
-        "fieldname":  "custom_quote_date",
-        "label":  "Quote date",
-        "fieldtype":  "Date",
-        "insert_after":  "custom_price_per_1000",
-        "module":  "Core"
-    },
-    {
-        "name":  "Request for Quotation Item-custom_remarks",
-        "doctype":  "Custom Field",
-        "dt":  "Request for Quotation Item",
-        "fieldname":  "custom_remarks",
-        "label":  "Remarks",
-        "fieldtype":  "Small Text",
-        "insert_after":  "custom_quote_date",
-        "module":  "Core"
+        "doctype":  "Custom Field"
     },
     {
         "options":  "User",
         "label":  "Product Manager",
-        "insert_after":  "custom_sop_date",
+        "insert_after":  "custom_project",
         "fieldname":  "custom_product_manager",
         "name":  "Request for Quotation-custom_product_manager",
-        "module":  "Core",
+        "module":  "Packing",
         "doctype":  "Custom Field",
         "dt":  "Request for Quotation",
         "fieldtype":  "Link"
+    },
+    {
+        "dt":  "Request for Quotation",
+        "insert_after":  "status",
+        "name":  "Request for Quotation-custom_sop_date",
+        "label":  "SOP Date",
+        "module":  "Packing",
+        "fieldname":  "custom_sop_date",
+        "fieldtype":  "Date",
+        "doctype":  "Custom Field"
+    },
+    {
+        "options":  "Sales Partner",
+        "label":  "Sales Partner",
+        "insert_after":  "item_code",
+        "fieldname":  "custom_sales_partner",
+        "name":  "Request for Quotation Item-custom_sales_partner",
+        "module":  "Packing",
+        "doctype":  "Custom Field",
+        "dt":  "Request for Quotation Item",
+        "fieldtype":  "Link"
+    },
+    {
+        "dt":  "Request for Quotation Item",
+        "insert_after":  "qty",
+        "name":  "Request for Quotation Item-custom_monthly_qty",
+        "label":  "Monthly Qty",
+        "module":  "Packing",
+        "fieldname":  "custom_monthly_qty",
+        "fieldtype":  "Float",
+        "doctype":  "Custom Field"
+    },
+    {
+        "dt":  "Request for Quotation Item",
+        "insert_after":  "description",
+        "name":  "Request for Quotation Item-custom_customer_description",
+        "label":  "Customer Description",
+        "module":  "Packing",
+        "fieldname":  "custom_customer_description",
+        "fieldtype":  "Data",
+        "doctype":  "Custom Field"
+    },
+    {
+        "dt":  "Request for Quotation Item",
+        "insert_after":  "item_code",
+        "name":  "Request for Quotation Item-custom_supplier_mpn",
+        "label":  "Supplier MPN",
+        "module":  "Packing",
+        "fieldname":  "custom_supplier_mpn",
+        "fieldtype":  "Data",
+        "doctype":  "Custom Field"
+    },
+    {
+        "dt":  "Request for Quotation Item",
+        "insert_after":  "description",
+        "name":  "Request for Quotation Item-custom_supplier_description",
+        "label":  "Supplier Description",
+        "module":  "Packing",
+        "fieldname":  "custom_supplier_description",
+        "fieldtype":  "Small Text",
+        "doctype":  "Custom Field"
+    },
+    {
+        "dt":  "Request for Quotation Item",
+        "insert_after":  "custom_supplier_description",
+        "name":  "Request for Quotation Item-custom_make",
+        "label":  "MAKE",
+        "module":  "Packing",
+        "fieldname":  "custom_make",
+        "fieldtype":  "Data",
+        "doctype":  "Custom Field"
+    },
+    {
+        "dt":  "Request for Quotation Item",
+        "insert_after":  "qty",
+        "name":  "Request for Quotation Item-custom_spq",
+        "label":  "SPQ",
+        "module":  "Packing",
+        "fieldname":  "custom_spq",
+        "fieldtype":  "Float",
+        "doctype":  "Custom Field"
+    },
+    {
+        "dt":  "Request for Quotation Item",
+        "insert_after":  "uom",
+        "name":  "Request for Quotation Item-custom_lead_time",
+        "label":  "Lead Time",
+        "module":  "Packing",
+        "fieldname":  "custom_lead_time",
+        "fieldtype":  "Data",
+        "doctype":  "Custom Field"
+    },
+    {
+        "dt":  "Request for Quotation Item",
+        "insert_after":  "rate",
+        "name":  "Request for Quotation Item-custom_price_per_1000",
+        "label":  "Price Per 1000",
+        "module":  "Packing",
+        "fieldname":  "custom_price_per_1000",
+        "fieldtype":  "Currency",
+        "doctype":  "Custom Field"
+    },
+    {
+        "dt":  "Request for Quotation Item",
+        "insert_after":  "custom_price_per_1000",
+        "name":  "Request for Quotation Item-custom_quote_date",
+        "label":  "Quote date",
+        "module":  "Packing",
+        "fieldname":  "custom_quote_date",
+        "fieldtype":  "Date",
+        "doctype":  "Custom Field"
+    },
+    {
+        "dt":  "Request for Quotation Item",
+        "insert_after":  "custom_quote_date",
+        "name":  "Request for Quotation Item-custom_remarks",
+        "label":  "Remarks",
+        "module":  "Packing",
+        "fieldname":  "custom_remarks",
+        "fieldtype":  "Small Text",
+        "doctype":  "Custom Field"
+    },
+    {
+        "options":  "Sales Partner",
+        "label":  "Sales Partner",
+        "insert_after":  "item_code",
+        "fieldname":  "custom_sales_partner",
+        "name":  "Quotation Item-custom_sales_partner",
+        "module":  "Packing",
+        "doctype":  "Custom Field",
+        "dt":  "Quotation Item",
+        "fieldtype":  "Link"
+    },
+    {
+        "dt":  "Quotation Item",
+        "insert_after":  "rate",
+        "name":  "Quotation Item-custom_msp",
+        "label":  "MSP",
+        "module":  "Packing",
+        "fieldname":  "custom_msp",
+        "fieldtype":  "Currency",
+        "doctype":  "Custom Field"
+    },
+    {
+        "dt":  "Quotation Item",
+        "insert_after":  "stock_balance",
+        "name":  "Quotation Item-custom_reserved_stock",
+        "label":  "Reserved Stock",
+        "module":  "Packing",
+        "fieldname":  "custom_reserved_stock",
+        "fieldtype":  "Float",
+        "doctype":  "Custom Field"
+    },
+    {
+        "dt":  "Quotation Item",
+        "insert_after":  "amount",
+        "name":  "Quotation Item-custom_sop_date",
+        "label":  "SOP Date",
+        "module":  "Packing",
+        "fieldname":  "custom_sop_date",
+        "fieldtype":  "Date",
+        "doctype":  "Custom Field"
+    },
+    {
+        "dt":  "Quotation Item",
+        "insert_after":  "custom_sop_date",
+        "name":  "Quotation Item-custom_monthly_qty",
+        "label":  "Monthly Qty",
+        "module":  "Packing",
+        "fieldname":  "custom_monthly_qty",
+        "fieldtype":  "Float",
+        "doctype":  "Custom Field"
+    },
+    {
+        "dt":  "Quotation Item",
+        "insert_after":  "custom_monthly_qty",
+        "name":  "Quotation Item-custom_customer_description",
+        "label":  "Customer Description",
+        "module":  "Packing",
+        "fieldname":  "custom_customer_description",
+        "fieldtype":  "Data",
+        "doctype":  "Custom Field"
+    },
+    {
+        "dt":  "Quotation",
+        "insert_after":  "customer_name",
+        "name":  "Quotation-custom_project",
+        "label":  "Project",
+        "module":  "Packing",
+        "fieldname":  "custom_project",
+        "fieldtype":  "Data",
+        "doctype":  "Custom Field"
     }
 ]
