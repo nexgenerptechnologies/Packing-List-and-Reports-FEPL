@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 import re
+import json
 
 def execute(filters=None):
 	if not filters:
@@ -37,18 +38,25 @@ def get_columns(filters, data):
 
 def get_data(filters):
 	conditions = get_conditions(filters)
+	account_list = get_accounts_filter(filters)
 	
-	# 1. Fetch only vouchers that have at least one debit to an Expense, Tax, or Asset account (e.g. Customs, Freight)
-	# This strictly eliminates Customer Payment Entries and pure transfers!
+	# If accounts are filtered:
+	if account_list:
+		account_condition = " AND gle.account IN %(selected_accounts)s"
+		filters["selected_accounts"] = tuple(account_list)
+	else:
+		account_condition = " AND (acc.root_type = 'Expense' OR acc.account_type IN ('Tax', 'Chargeable', 'Expense Account', 'Expenses Included In Valuation'))"
+
+	# 1. Fetch vouchers that match the selected expense accounts or all general expenses
 	vouchers_with_expenses = frappe.db.sql("""
 		SELECT DISTINCT gle.voucher_no
 		FROM `tabGL Entry` gle
 		JOIN `tabAccount` acc ON gle.account = acc.name
 		WHERE gle.is_cancelled = 0
-		AND (acc.root_type = 'Expense' OR acc.account_type IN ('Tax', 'Chargeable', 'Expense Account', 'Expenses Included In Valuation'))
 		AND gle.debit > 0
+		{account_condition}
 		{conditions}
-	""".format(conditions=conditions), filters, as_dict=1)
+	""".format(account_condition=account_condition, conditions=conditions), filters, as_dict=1)
 
 	if not vouchers_with_expenses:
 		return []
@@ -163,6 +171,39 @@ def get_conditions(filters):
 	if filters.get("party"):
 		conditions += " AND gle.party = %(party)s"
 	return conditions
+
+def get_accounts_filter(filters):
+	raw_account = filters.get("account")
+	if not raw_account:
+		return []
+	
+	if isinstance(raw_account, str):
+		try:
+			parsed = json.loads(raw_account)
+			if isinstance(parsed, list):
+				raw_account = parsed
+			else:
+				raw_account = [raw_account]
+		except Exception:
+			raw_account = [raw_account]
+	elif not isinstance(raw_account, list):
+		raw_account = [raw_account]
+
+	# Expand group accounts to include all child accounts (just like standard General Ledger)
+	expanded_accounts = set()
+	for acc in raw_account:
+		if not acc:
+			continue
+		acc_info = frappe.db.get_value("Account", acc, ["is_group", "lft", "rgt"], as_dict=1)
+		if acc_info and acc_info.is_group:
+			children = frappe.db.sql_list("""
+				SELECT name FROM `tabAccount` WHERE lft >= %s AND rgt <= %s
+			""", (acc_info.lft, acc_info.rgt))
+			expanded_accounts.update(children)
+		else:
+			expanded_accounts.add(acc)
+			
+	return list(expanded_accounts)
 
 def build_account_columns(data):
 	# Scan all data rows to find dynamic account columns and their exact real names
