@@ -213,7 +213,33 @@ class ShipmentTracker(Document):
 				# Rate Match (Precision up to 0.000001)
 				po_rate = float(po_item.get("rate") or 0.0)
 				if abs(float(item.rate or 0) - po_rate) > 0.000001:
-					discrepancies.append(_("Rate mismatch (Expected: {0}, Got: {1})").format(po_rate, item.rate))
+					if getattr(self.flags, "auto_update_rates", 0):
+						po_received = float(po_item.get("received_qty") or 0.0)
+						if po_received == 0:
+							po_name = frappe.db.get_value("Purchase Order Item", item.purchase_order_item, "parent")
+							if not getattr(self.flags, "pos_to_update", None):
+								self.flags.pos_to_update = {}
+							if po_name not in self.flags.pos_to_update:
+								self.flags.pos_to_update[po_name] = []
+							self.flags.pos_to_update[po_name].append({
+								"po_item_id": item.purchase_order_item,
+								"new_rate": item.rate
+							})
+						else:
+							discrepancies.append(_("Rate mismatch but item is already partially/fully received (Expected: {0}, Got: {1})").format(po_rate, item.rate))
+					else:
+						discrepancies.append(_("Rate mismatch (Expected: {0}, Got: {1})").format(po_rate, item.rate))
+						if not getattr(self.flags, "rate_mismatch_data", None):
+							self.flags.rate_mismatch_data = []
+						po_name = frappe.db.get_value("Purchase Order Item", item.purchase_order_item, "parent")
+						self.flags.rate_mismatch_data.append({
+							"po_number": po_name,
+							"item_code": item.item_code,
+							"old_rate": po_rate,
+							"new_rate": item.rate,
+							"can_update": (float(po_item.get("received_qty") or 0.0) == 0),
+							"row_idx": item.idx
+						})
 				
 				# Line Number Match (supports loose/prefix-insensitive comparison)
 				def loose_line_match(ln1, ln2):
@@ -234,6 +260,21 @@ class ShipmentTracker(Document):
 				if discrepancies:
 					for discrepancy in discrepancies:
 						validation_errors.append(_("Row {0} (Item {1}): {2}").format(item.idx, item.item_code, discrepancy))
+					
+		# Apply PO Rate updates if any
+		if getattr(self.flags, "auto_update_rates", 0) and getattr(self.flags, "pos_to_update", None):
+			for po_name, updates in self.flags.pos_to_update.items():
+				po = frappe.get_doc("Purchase Order", po_name)
+				for upd in updates:
+					for p_item in po.items:
+						if p_item.name == upd["po_item_id"]:
+							p_item.rate = upd["new_rate"]
+							p_item.amount = p_item.qty * p_item.rate
+							break
+				po.flags.ignore_validate_update_after_submit = True
+				po.set_qty_as_per_stock_uom()
+				po.calculate_taxes_and_totals()
+				po.save(ignore_permissions=True)
 					
 		if validation_errors:
 			error_html = "<b>" + _("Validation failed for one or more items:") + "</b><br><br>"
@@ -433,8 +474,9 @@ def has_purchase_invoices(purchase_receipt):
 	return len(active_invoices) > 0
 
 @frappe.whitelist()
-def fetch_from_excel(docname):
+def fetch_from_excel(docname, auto_update_rates=0):
 	doc = frappe.get_doc("Shipment Tracker", docname)
+	doc.flags.auto_update_rates = frappe.utils.cint(auto_update_rates)
 	if not doc.excel_file:
 		frappe.throw(_("Please attach an Excel file first."))
 		
@@ -545,10 +587,15 @@ def fetch_from_excel(docname):
 			child.bill_date = item_data["bill_date"]
 						
 		doc.save()
-		return "Success"
+		return {"status": "Success"}
 		
 	except frappe.ValidationError:
-		raise
+		if getattr(doc.flags, "rate_mismatch_data", None):
+			# Clear message log so normal errors don't pop up
+			frappe.local.message_log = []
+			return {"status": "rate_mismatch", "data": doc.flags.rate_mismatch_data}
+		else:
+			raise
 	except Exception as e:
 		frappe.throw(f"Failed to parse Excel: {str(e)}")
 

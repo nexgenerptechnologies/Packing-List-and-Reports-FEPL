@@ -64,16 +64,87 @@ frappe.ui.form.on('Shipment Tracker', {
 		
 		if (frm.doc.docstatus === 0 && frm.doc.excel_file) {
 			frm.add_custom_button(__('Fetch from Excel'), function() {
-				frappe.call({
-					method: "packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.fetch_from_excel",
-					args: { docname: frm.doc.name },
-					callback: function(r) {
-						if (!r.exc) {
-							frappe.show_alert({message: __('Excel data loaded successfully.'), color: 'green'});
-							frm.reload_doc();
+				let call_fetch = function(auto_update = 0) {
+					frappe.call({
+						method: "packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.fetch_from_excel",
+						args: { docname: frm.doc.name, auto_update_rates: auto_update },
+						freeze: true,
+						freeze_message: __("Processing..."),
+						callback: function(r) {
+							if (!r.exc && r.message) {
+								if (r.message.status === "Success") {
+									frappe.show_alert({message: __('Excel data loaded successfully.'), color: 'green'});
+									frm.reload_doc();
+								} else if (r.message.status === "rate_mismatch") {
+									let data = r.message.data;
+									
+									let rows_html = "";
+									let has_updatable = false;
+									data.forEach(d => {
+										let status_html = d.can_update 
+											? <span class="text-success" style="font-weight:bold;">Ready to Update</span> 
+											: <span class="text-danger" style="font-weight:bold;">Blocked: Already Received</span>;
+										if (d.can_update) has_updatable = true;
+											
+										rows_html += 
+											<tr>
+												<td>\</td>
+												<td>\</td>
+												<td class="text-right">\</td>
+												<td class="text-right">\</td>
+												<td>\</td>
+											</tr>
+										;
+									});
+									
+									let html = 
+										<p>The following items in your Excel file have different rates compared to their Purchase Orders:</p>
+										<div style="max-height: 300px; overflow-y: auto;">
+											<table class="table table-bordered">
+												<thead>
+													<tr>
+														<th>PO Number</th>
+														<th>Item Code</th>
+														<th class="text-right">PO Rate</th>
+														<th class="text-right">Excel Rate</th>
+														<th>Status</th>
+													</tr>
+												</thead>
+												<tbody>
+													\
+												</tbody>
+											</table>
+										</div>
+									;
+									
+									if (has_updatable) {
+										html += <p class="mt-3"><b>Do you want to automatically update the eligible Purchase Orders with the new Excel rates?</b></p>;
+									} else {
+										html += <p class="mt-3 text-danger"><b>None of the items can be updated because they are already received. Please correct your Excel file.</b></p>;
+									}
+									
+									let d = new frappe.ui.Dialog({
+										title: __('Rate Mismatch Detected'),
+										fields: [{ fieldtype: 'HTML', fieldname: 'html_table', options: html }],
+										primary_action_label: has_updatable ? __('Update Eligible Rates & Proceed') : __('Close'),
+										primary_action: function() {
+											d.hide();
+											if (has_updatable) {
+												call_fetch(1);
+											}
+										},
+										secondary_action_label: __('Cancel'),
+										secondary_action: function() {
+											d.hide();
+										}
+									});
+									d.show();
+								}
+							}
 						}
-					}
-				});
+					});
+				};
+				call_fetch(0);
 			}).addClass('btn-primary');
 		}
 		
