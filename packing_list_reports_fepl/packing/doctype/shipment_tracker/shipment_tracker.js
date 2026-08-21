@@ -44,7 +44,6 @@ frappe.ui.form.on('Shipment Tracker', {
 						window.open('/api/method/packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.download_template?docname=' + encodeURIComponent(frm.doc.name));
 					});
 				}, function() {
-					// Fallback to empty template
 					window.open('/api/method/packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.download_template');
 				});
 			} else {
@@ -82,22 +81,22 @@ frappe.ui.form.on('Shipment Tracker', {
 									let has_updatable = false;
 									data.forEach(d => {
 										let status_html = d.can_update 
-											? <span class="text-success" style="font-weight:bold;">Ready to Update</span> 
-											: <span class="text-danger" style="font-weight:bold;">Blocked: Already Received</span>;
+											? `<span class="text-success" style="font-weight:bold;">Ready to Update</span>` 
+											: `<span class="text-danger" style="font-weight:bold;">Blocked: Already Received</span>`;
 										if (d.can_update) has_updatable = true;
 											
-										rows_html += 
+										rows_html += `
 											<tr>
-												<td>\</td>
-												<td>\</td>
-												<td class="text-right">\</td>
-												<td class="text-right">\</td>
-												<td>\</td>
+												<td>${d.po_number}</td>
+												<td>${d.item_code}</td>
+												<td class="text-right">${format_currency(d.old_rate)}</td>
+												<td class="text-right">${format_currency(d.new_rate)}</td>
+												<td>${status_html}</td>
 											</tr>
-										;
+										`;
 									});
 									
-									let html = 
+									let html = `
 										<p>The following items in your Excel file have different rates compared to their Purchase Orders:</p>
 										<div style="max-height: 300px; overflow-y: auto;">
 											<table class="table table-bordered">
@@ -111,16 +110,16 @@ frappe.ui.form.on('Shipment Tracker', {
 													</tr>
 												</thead>
 												<tbody>
-													\
+													${rows_html}
 												</tbody>
 											</table>
 										</div>
-									;
+									`;
 									
 									if (has_updatable) {
-										html += <p class="mt-3"><b>Do you want to automatically update the eligible Purchase Orders with the new Excel rates?</b></p>;
+										html += `<p class="mt-3"><b>Do you want to automatically update the eligible Purchase Orders with the new Excel rates?</b></p>`;
 									} else {
-										html += <p class="mt-3 text-danger"><b>None of the items can be updated because they are already received. Please correct your Excel file.</b></p>;
+										html += `<p class="mt-3 text-danger"><b>None of the items can be updated because they are already received. Please correct your Excel file.</b></p>`;
 									}
 									
 									let d = new frappe.ui.Dialog({
@@ -169,115 +168,78 @@ frappe.ui.form.on('Shipment Tracker', {
 		}
 
 		frm.add_custom_button(__('Add Remark'), function() {
-			let d = new frappe.ui.Dialog({
-				title: __('Add Remark to Shipment Tracker'),
-				fields: [
-					{
-						label: __('New Remark'),
-						fieldname: 'new_remark',
-						fieldtype: 'Small Text',
-						reqd: 1
-					}
-				],
-				primary_action_label: __('Add'),
-				primary_action(values) {
-					frappe.call({
-						method: 'packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.add_shipment_remark',
-						args: {
-							docname: frm.doc.name,
-							remark: values.new_remark
-						},
-						callback: function(r) {
-							if (!r.exc) {
-								frappe.show_alert({message: __('Remark added successfully.'), color: 'green'});
-								frm.reload_doc();
-								d.hide();
-							}
+			frappe.prompt({
+				label: __('Remark'),
+				fieldname: 'remark',
+				fieldtype: 'Small Text',
+				reqd: 1
+			}, (values) => {
+				frappe.call({
+					method: "packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.add_shipment_remark",
+					args: {
+						docname: frm.doc.name,
+						remark: values.remark
+					},
+					freeze: true,
+					callback: function(r) {
+						if (!r.exc) {
+							frappe.show_alert({message: __('Remark added successfully.'), color: 'green'});
+							frm.reload_doc();
 						}
-					});
-				}
-			});
-			d.show();
-		});
-	},
-	fetch_pending_items: function(frm) {
-		let pos = frm.doc.shipment_pos.map(d => d.purchase_order);
-		frappe.call({
-			method: "packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.get_outstanding_po_items",
-			args: { supplier: frm.doc.supplier, purchase_orders: pos },
-			callback: function(r) {
-				if (r.message && r.message.length > 0) {
-					if (r.message[0].currency) {
-						frm.set_value('currency', r.message[0].currency);
 					}
-					frm.clear_table('shipment_items');
-					r.message.forEach(row => {
-						let child = frm.add_child('shipment_items');
-						child.item_code = row.item_code;
-						child.item_name = row.item_name;
-						child.description = row.description;
-						child.qty = row.qty;
-						child.rate = row.rate;
-						child.line_number = row.line_number;
-						child.purchase_order = row.purchase_order;
-						child.purchase_order_item = row.purchase_order_item;
-					});
-					frm.refresh_field('shipment_items');
-					frappe.show_alert({message: __('Fetched {0} Pending Items. Validation will be strict on Receipt creation.', [r.message.length]), color: 'blue'});
-				}
-			}
-		});
+				});
+			}, __('Add Remark to Timeline'), __('Add'));
+		}, __('Actions'));
 	},
-	make_purchase_receipt: function(frm) {
+
+	fetch_pending_items: function(frm) {
 		frappe.call({
-			method: "packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.make_purchase_receipt",
+			method: "packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.fetch_pending_items",
 			args: { docname: frm.doc.name },
 			callback: function(r) {
-				if (r.message) {
-					frappe.db.set_value('Shipment Tracker', frm.doc.name, 'purchase_receipt', r.message)
-						.then(() => {
-							frm.reload_doc().then(() => {
-								frappe.set_route("Form", "Purchase Receipt", r.message);
-							});
-						});
+				if (!r.exc) {
+					frappe.show_alert({message: __('Pending items fetched successfully.'), color: 'green'});
+					frm.reload_doc();
 				}
 			}
 		});
 	},
-	create_purchase_invoices: function(frm) {
-		frappe.confirm(__('Are you sure you want to create Purchase Invoices?'), () => {
+
+	make_purchase_receipt: function(frm) {
+		frappe.confirm(__('Are you sure you want to create a Purchase Receipt?'), function() {
 			frappe.call({
-				method: "packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.create_purchase_invoices",
+				method: "packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.make_purchase_receipt",
 				args: { docname: frm.doc.name },
+				freeze: true,
+				freeze_message: __('Creating Purchase Receipt...'),
 				callback: function(r) {
-					if (r.message && r.message.length > 0) {
-						let msg = __("Purchase Invoice {0} created successfully.", [r.message.join(", ")]);
-						frappe.msgprint({
-							title: __('Success'),
-							indicator: 'green',
-							message: msg
-						});
+					if (!r.exc && r.message) {
+						frappe.show_alert({message: __('Purchase Receipt created: ' + r.message), color: 'green'});
 						frm.reload_doc();
-					} else {
-						frappe.msgprint({
-							title: __('Notice'),
-							indicator: 'orange',
-							message: __('No Purchase Invoices were created. Please verify item mappings.')
-						});
+						frappe.set_route('Form', 'Purchase Receipt', r.message);
 					}
 				}
 			});
 		});
-	}
-});
+	},
 
-frappe.ui.form.on('Shipment Tracker', {
-	onload: function(frm) {
-		frm.set_query('purchase_order', 'shipment_pos', function() {
-			return { filters: { supplier: frm.doc.supplier, docstatus: 1, per_received: ["<", 100] } };
-		});
-		frm.set_query('purchase_receipt', function() {
-			return { filters: { supplier: frm.doc.supplier, docstatus: ["in", [0, 1]] } };
+	create_purchase_invoices: function(frm) {
+		frappe.confirm(__('Are you sure you want to create Purchase Invoices for these shipments?'), function() {
+			frappe.call({
+				method: "packing_list_reports_fepl.packing.doctype.shipment_tracker.shipment_tracker.make_purchase_invoices",
+				args: { docname: frm.doc.name },
+				freeze: true,
+				freeze_message: __('Creating Purchase Invoices...'),
+				callback: function(r) {
+					if (!r.exc && r.message) {
+						frappe.show_alert({
+							message: __('Successfully created Purchase Invoices: ' + r.message.join(', ')), 
+							color: 'green'
+						});
+						frm.reload_doc();
+					}
+				}
+			});
 		});
 	}
 });
