@@ -257,7 +257,7 @@ def get_mat_label_html(docname, custom_quantities=None):
 			break-after: page;
 			page-break-inside: avoid;
 			box-sizing: border-box;
-			padding: 2.0mm 2.5mm 2.0mm 2.5mm;
+			padding: 2.0mm 3.0mm 1.5mm 3.0mm;
 			position: relative;
 			background: #fff;
 			overflow: hidden;
@@ -265,27 +265,30 @@ def get_mat_label_html(docname, custom_quantities=None):
 			flex-direction: column;
 			justify-content: space-between;
 		}}
-		/* Top section - Height 16.5mm ensuring Package-ID is 100% visible */
+		/* Top section - Height 18.5mm with 18.2mm DMC + Quiet Zone */
 		.top-section {{
 			display: flex;
 			flex-direction: row;
-			align-items: flex-start;
-			height: 16.5mm;
+			align-items: center;
+			height: 18.5mm;
 			overflow: hidden;
 		}}
 		.dmc-container {{
-			width: 15.5mm;
-			height: 15.5mm;
+			width: 18.2mm;
+			height: 18.2mm;
 			margin-right: 2.5mm;
 			flex-shrink: 0;
 			display: flex;
 			align-items: center;
 			justify-content: center;
+			background: #ffffff;
 		}}
 		.dmc-canvas {{
-			width: 15.5mm;
-			height: 15.5mm;
+			width: 18.2mm;
+			height: 18.2mm;
+			image-rendering: -webkit-optimize-contrast;
 			image-rendering: pixelated;
+			image-rendering: crisp-edges;
 		}}
 		.top-text-col {{
 			flex: 1;
@@ -304,20 +307,20 @@ def get_mat_label_html(docname, custom_quantities=None):
 			font-size: 7.8pt;
 		}}
 
-		/* Middle section - Height 15.5mm with Shipping Note moved below MS-Level */
+		/* Middle section - Height 14.5mm with balanced spacing */
 		.mid-section {{
 			display: flex;
 			flex-direction: row;
 			justify-content: space-between;
-			height: 15.5mm;
-			font-size: 6.2pt;
-			line-height: 1.25;
+			height: 14.5mm;
+			font-size: 6.0pt;
+			line-height: 1.22;
 			overflow: hidden;
 			border-top: 0.5px solid #bbb;
-			padding-top: 0.8mm;
+			padding-top: 0.6mm;
 		}}
 		.mid-left {{
-			width: 44mm;
+			width: 43mm;
 			overflow: hidden;
 		}}
 		.mid-left div {{
@@ -336,35 +339,35 @@ def get_mat_label_html(docname, custom_quantities=None):
 		}}
 		.pu-barcode-canvas {{
 			width: 24mm;
-			height: 3.2mm;
+			height: 3.0mm;
 			display: block;
 			image-rendering: pixelated;
 			margin: 0.2mm 0;
 		}}
 
-		/* Bottom section - Height 14.0mm with balanced margins */
+		/* Bottom section - Height 13.5mm with balanced margins */
 		.bottom-section {{
-			height: 14.0mm;
+			height: 13.5mm;
 			display: flex;
 			flex-direction: column;
 			justify-content: flex-end;
 			overflow: hidden;
 			border-top: 0.5px solid #bbb;
-			padding-top: 0.6mm;
+			padding-top: 0.5mm;
 		}}
 		.barcode-block {{
-			margin-bottom: 0.3mm;
+			margin-bottom: 0.2mm;
 			text-align: center;
 		}}
 		.full-barcode-canvas {{
-			width: 68mm;
-			height: 4.2mm;
+			width: 67mm;
+			height: 3.8mm;
 			display: block;
 			margin: 0 auto;
 			image-rendering: pixelated;
 		}}
 		.barcode-caption {{
-			font-size: 5.8pt;
+			font-size: 5.6pt;
 			font-family: monospace;
 			font-weight: bold;
 			text-align: center;
@@ -442,7 +445,8 @@ def get_mat_label_html(docname, custom_quantities=None):
 <body>
 	<div class="no-print no-print-toolbar">
 		<div>
-			<b>TSC TTP-244 Pro Tips:</b> In Chrome Print Preview, set Paper Size to <b>75mm x 50mm</b>, <b>Layout: Portrait</b>, and <b>Margins: None</b>.
+			<b>TSC TTP-244 Pro Tips:</b> Paper Size: <b>75mm x 50mm</b>, <b>Layout: Portrait</b>, <b>Margins: None</b>.<br>
+			<b>Printer Driver:</b> Set Print Speed to <b>2.0 ips</b> (or 2.5 ips) and Darkness/Density to <b>8 - 10</b> for optimal 2D barcode scanning.
 		</div>
 		<button class="btn-action" onclick="window.print()">Print Labels</button>
 	</div>
@@ -511,11 +515,13 @@ def get_mat_label_html(docname, custom_quantities=None):
 		function renderAllBarcodes() {{
 			labels.forEach((lbl, i) => {{
 				try {{
-					// 1. Data Matrix Code (DMC)
+					// 1. Data Matrix Code (DMC) with Quiet Zone & Crisp 4x Rendering
 					bwipjs.toCanvas(`dmc_${{i}}`, {{
 						bcid: "datamatrix",
 						text: lbl.dmc_str,
-						scale: 3,
+						scale: 4,
+						padding: 2,
+						backgroundcolor: "ffffff",
 						includetext: false
 					}});
 
@@ -535,7 +541,7 @@ def get_mat_label_html(docname, custom_quantities=None):
 						bcid: "code128",
 						text: lbl.part_supp_bc,
 						scale: 2,
-						height: 6,
+						height: 5,
 						includetext: false
 					}});
 
@@ -544,7 +550,7 @@ def get_mat_label_html(docname, custom_quantities=None):
 						bcid: "code128",
 						text: lbl.pkg_qty_bc,
 						scale: 2,
-						height: 6,
+						height: 5,
 						includetext: false
 					}});
 				}} catch (err) {{
